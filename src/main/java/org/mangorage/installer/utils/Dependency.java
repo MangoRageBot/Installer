@@ -20,9 +20,12 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package org.mangorage.launcher.utils;
+package org.mangorage.installer.utils;
 
-import java.util.List;
+import org.apache.ivy.core.module.id.ModuleRevisionId;
 
-public record DependencyList(List<Dependency> libs) {
+public record Dependency(String groupId, String artifactId, String version) {
+    public ModuleRevisionId getMRI() {
+        return ModuleRevisionId.newInstance(groupId, artifactId, version);
+    }
 }

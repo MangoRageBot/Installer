@@ -9,9 +9,11 @@ buildscript {
     }
 
     dependencies {
+        classpath 'gradle.plugin.com.github.johnrengelman:shadow:7.1.2'
     }
 }
 
+apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'java'
 
 group = 'org.mangorage'
@@ -35,10 +37,15 @@ test {
     useJUnitPlatform()
 }
 
+shadowJar {
+    group "main tasks"
+    archiveClassifier.set('')
+}
+
 jar {
     duplicatesStrategy = DuplicatesStrategy.EXCLUDE
 
     manifest {
-        attributes 'Main-Class': 'org.mangorage.mangobot.launcher.Installer'
+        attributes 'Main-Class': 'org.mangorage.installer.Installer'
     }
 }

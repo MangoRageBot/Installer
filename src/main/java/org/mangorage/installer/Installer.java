@@ -20,14 +20,14 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package org.mangorage.launcher;
+package org.mangorage.installer;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.maven.artifact.versioning.ComparableVersion;
-import org.mangorage.launcher.utils.Maven;
-import org.mangorage.launcher.utils.Package;
-import org.mangorage.launcher.utils.Util;
-import org.mangorage.launcher.utils.Version;
+import org.mangorage.installer.utils.Maven;
+import org.mangorage.installer.utils.Package;
+import org.mangorage.installer.utils.Util;
+import org.mangorage.installer.utils.Version;
 
 import java.io.File;
 import java.io.IOException;

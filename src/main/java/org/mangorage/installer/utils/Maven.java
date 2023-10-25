@@ -20,7 +20,7 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package org.mangorage.launcher.utils;
+package org.mangorage.installer.utils;
 
 
 import org.apache.commons.io.FileUtils;

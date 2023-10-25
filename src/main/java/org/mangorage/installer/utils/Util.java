@@ -20,7 +20,7 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package org.mangorage.launcher.utils;
+package org.mangorage.installer.utils;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;

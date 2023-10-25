@@ -20,6 +20,7 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package org.mangorage.launcher.utils;
+package org.mangorage.installer.utils;
 
-public record Package(String packageName, Maven maven) {}
+public record Version(String version) {
+}

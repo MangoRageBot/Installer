@@ -20,7 +20,7 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package org.mangorage.launcher;
+package org.mangorage.installer;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.ivy.Ivy;
@@ -32,9 +32,9 @@ import org.apache.ivy.core.settings.IvySettings;
 import org.apache.ivy.util.DefaultMessageLogger;
 import org.apache.ivy.util.Message;
 import org.apache.maven.artifact.versioning.ComparableVersion;
-import org.mangorage.launcher.utils.Dependency;
-import org.mangorage.launcher.utils.DependencyList;
-import org.mangorage.launcher.utils.Util;
+import org.mangorage.installer.utils.Dependency;
+import org.mangorage.installer.utils.DependencyList;
+import org.mangorage.installer.utils.Util;
 
 import java.io.File;
 import java.io.IOException;
