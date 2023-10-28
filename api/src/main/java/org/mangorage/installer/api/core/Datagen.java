@@ -12,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 // Create's a file in the directory given
 // A simple dependencies.json file
@@ -38,6 +39,58 @@ public class Datagen {
                 .toList()
         ), dir.getAbsolutePath(), "dependencies.json");
     }
+
+    public static void generateIvySettingsXml(String directory, List<String> repositories) {
+
+        /**
+         * <ivysettings>
+         *     <settings defaultResolver="chain-1"/>
+         *     <resolvers>
+         *         <ibiblio name="matt" m2compatible="true" root="https://repo.mattmalec.com/repository/releases"/>
+         *         <ibiblio name="central" m2compatible="true"/>
+         *         <filesystem name="custom" checkmodified="true">
+         *             <ivy pattern="${custom.base.dir}/ivy/[artifact]-[revision].ivy"/>
+         *             <artifact pattern="${custom.base.dir}/[artifact]-[revision].[ext]"/>
+         *         </filesystem>
+         *         <chain name="chain-1">
+         *             <resolver ref="custom"/>
+         *             <resolver ref="central"/>
+         *             <resolver ref="matt"/>
+         *         </chain>
+         *     </resolvers>
+         * </ivysettings>
+         */
+
+        StringBuilder builder = new StringBuilder();
+        AtomicInteger counter = new AtomicInteger(0);
+
+        builder.append("<ivysettings>\n");
+        builder.append("\t<settings defaultResolver=\"chain-1\"/>\n");
+        builder.append("\t<resolvers>\n");
+        builder.append("\t\t<ibiblio name=\"central\" m2compatible=\"true\"/>\n");
+        repositories.forEach(repo -> {
+            builder.append("\t\t<ibiblio name=\"repo-%s\" m2compatible=\"true\" root=\"%s\"/>\n".formatted(counter.getAndIncrement(), repo));
+        });
+        builder.append("\t\t<filesystem name=\"custom\" checkmodified=\"true\">\n");
+        builder.append("\t\t\t<ivy pattern=\"${custom.base.dir}/ivy/[artifact]-[revision].ivy\"/>\n");
+        builder.append("\t\t\t<artifact pattern=\"${custom.base.dir}/[artifact]-[revision].[ext]\"/>\n");
+        builder.append("\t\t</filesystem>\n");
+        builder.append("\t\t<chain name=\"chain-1\">\n");
+        builder.append("\t\t\t<resolver ref=\"central\"/>\n");
+        for (int i = 0; i < counter.get(); i++) {
+            builder.append("\t\t\t<resolver ref=\"repo-%s\"/>\n".formatted(i));
+        }
+        builder.append("\t\t</chain>\n");
+        builder.append("\t</resolvers>\n");
+        builder.append("</ivysettings>\n");
+
+        try {
+            Files.writeString(Path.of("%s/ivysettings.xml".formatted(directory)), builder.toString());
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+    }
+
 
     public static void saveObjectToFile(Object object, String directory, String fileName) {
         try {
