@@ -11,21 +11,19 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Arrays;
+import java.util.List;
 
 // Create's a file in the directory given
 // A simple dependencies.json file
 // Can also create an ivySettings xml file (TODO)
 public class Datagen {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
-    public static void main(String[] args) {
+    public static void generateDependenciesJson(String directory, List<String> dependencies) {
         // args -> [0] = directory
         // args -> [1+] = dependencies
 
-        if (args.length < 2)
-            throw new IllegalArgumentException("Not enough arguments!");
 
-        Path path = Paths.get(args[0]);
+        Path path = Paths.get(directory);
         File dir = path.toFile();
 
         if (!dir.isDirectory())
@@ -34,7 +32,7 @@ public class Datagen {
         System.out.println("Generating dependencies.json file... to %s".formatted(dir.getAbsolutePath()));
 
         saveObjectToFile(new DependencyList(
-                Arrays.stream(Arrays.copyOfRange(args, 1, args.length))
+                dependencies.stream()
                 .map(dep -> dep.split(":"))
                 .map(dep -> new Dependency(dep[0], dep[1], dep[2]))
                 .toList()

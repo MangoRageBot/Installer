@@ -44,8 +44,9 @@ publishing {
     publications {
         mavenJava(MavenPublication) {
             artifact jar
+            artifactId = 'InstallerAPI'
             pom {
-                name = 'MangoBot'
+                name = 'Installer'
                 description = 'A discord bot used for many servers'
                 url = 'https://github.com/MangoRageBot/Installer'
                 issueManagement {

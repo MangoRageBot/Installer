@@ -1,7 +1,9 @@
 package org.mangorage.installer.api.core;
 
+import java.util.List;
+
 public class Example {
     public static void main(String[] args) {
-        Datagen.main(new String[]{"build/", "org.mangorage:mangobotapi:1.0.0"});
+        Datagen.generateDependenciesJson("build/", List.of("org.mangorage:mangobotapi:1.0.0"));
     }
 }
