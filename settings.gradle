@@ -1,2 +1,3 @@
 rootProject.name = 'installer'
+include 'api'
 

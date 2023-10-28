@@ -20,17 +20,7 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package org.mangorage.installer.utils;
-
-
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-
-import java.io.BufferedInputStream;
-import java.io.File;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.net.URL;
+package org.mangorage.installer.api;
 
 /**
  * Represents a Maven dependency.
@@ -48,35 +38,4 @@ public record Maven(String repository, String groupId, String artifactId, String
             "EXAMPLE_JAR_NAME"
 
     );
-
-    public File downloadTo(String version, File dest) {
-        String URL = "%s/%s/%s/%s/%s-%s%s".formatted(repository, groupId.replace(".", "/"), artifactId, version, artifactId, version, jar);
-        try {
-            FileUtils.copyURLToFile(new URL(URL), dest);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return dest;
-    }
-
-    public String downloadMetadata() {
-        String url = repository + "/" + groupId.replace(".", "/") + "/" + artifactId + "/maven-metadata.xml";
-        try {
-            BufferedInputStream in = new BufferedInputStream(new URL(url).openStream());
-            return IOUtils.toString(new InputStreamReader(in));
-        } catch (IOException e) {
-            // handle exception
-        }
-        return null;
-    }
-
-    public static String parseLatestVersion(String metadata) {
-        String[] lines = metadata.split("\n");
-        for (String line : lines) {
-            if (line.contains("<latest>")) {
-                return line.substring(line.indexOf("<latest>") + 8, line.indexOf("</latest>"));
-            }
-        }
-        return null;
-    }
 }

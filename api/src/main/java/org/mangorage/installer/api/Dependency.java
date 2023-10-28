@@ -20,9 +20,6 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package org.mangorage.installer.utils;
+package org.mangorage.installer.api;
 
-import java.util.List;
-
-public record DependencyList(List<Dependency> libs) {
-}
+public record Dependency(String groupId, String artifactId, String version) {}

@@ -20,12 +20,6 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package org.mangorage.installer.utils;
+package org.mangorage.installer.api;
 
-import org.apache.ivy.core.module.id.ModuleRevisionId;
-
-public record Dependency(String groupId, String artifactId, String version) {
-    public ModuleRevisionId getMRI() {
-        return ModuleRevisionId.newInstance(groupId, artifactId, version);
-    }
-}
+public record Package(String packageName, Maven maven) {}

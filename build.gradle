@@ -27,6 +27,7 @@ dependencies {
     testImplementation platform('org.junit:junit-bom:5.9.1')
     testImplementation 'org.junit.jupiter:junit-jupiter'
 
+    implementation project(":api")
     implementation("commons-io:commons-io:2.14.0")
     implementation("com.google.code.gson:gson:2.10.1")
     implementation("org.apache.ivy:ivy:2.5.0")

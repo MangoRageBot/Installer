@@ -20,13 +20,22 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package org.mangorage.installer.utils;
+package org.mangorage.installer;
 
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
+import org.apache.commons.io.FileUtils;
+import org.apache.commons.io.IOUtils;
+import org.apache.ivy.core.module.id.ModuleRevisionId;
+import org.mangorage.installer.api.Dependency;
+import org.mangorage.installer.api.Maven;
+import org.mangorage.installer.api.Version;
 
+import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStreamReader;
+import java.net.URL;
 import java.nio.file.Files;
 import java.nio.file.Path;
 
@@ -34,6 +43,56 @@ public class Util {
     private static final String DATA_DIR = "installer/";
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
+
+
+
+    public static File downloadTo(Maven maven, String version, File dest) {
+        String URL = "%s/%s/%s/%s/%s-%s%s".formatted(
+                maven.repository(),
+                maven.groupId()
+                        .replace(
+                                ".",
+                                "/"
+                        ),
+                maven.artifactId(),
+                version,
+                maven.artifactId(),
+                version,
+                maven.jar()
+        );
+
+        try {
+            FileUtils.copyURLToFile(new URL(URL), dest);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+        return dest;
+    }
+
+    public static String downloadMetadata(Maven maven) {
+        String url = maven.repository() + "/" + maven.groupId().replace(".", "/") + "/" + maven.artifactId() + "/maven-metadata.xml";
+        try {
+            BufferedInputStream in = new BufferedInputStream(new URL(url).openStream());
+            return IOUtils.toString(new InputStreamReader(in));
+        } catch (IOException e) {
+            // handle exception
+        }
+        return null;
+    }
+
+    public static String parseLatestVersion(String metadata) {
+        String[] lines = metadata.split("\n");
+        for (String line : lines) {
+            if (line.contains("<latest>")) {
+                return line.substring(line.indexOf("<latest>") + 8, line.indexOf("</latest>"));
+            }
+        }
+        return null;
+    }
+
+    public static ModuleRevisionId getMRI(Dependency dependency) {
+        return ModuleRevisionId.newInstance(dependency.groupId(), dependency.artifactId(), dependency.version());
+    }
 
     public static void saveVersion(String version) {
         saveObjectToFile(new Version(version), DATA_DIR, "version.json");

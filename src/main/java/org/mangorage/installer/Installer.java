@@ -24,10 +24,9 @@ package org.mangorage.installer;
 
 import org.apache.commons.io.FileUtils;
 import org.apache.maven.artifact.versioning.ComparableVersion;
-import org.mangorage.installer.utils.Maven;
-import org.mangorage.installer.utils.Package;
-import org.mangorage.installer.utils.Util;
-import org.mangorage.installer.utils.Version;
+import org.mangorage.installer.api.Maven;
+import org.mangorage.installer.api.Package;
+import org.mangorage.installer.api.Version;
 
 import java.io.File;
 import java.io.IOException;
@@ -53,6 +52,8 @@ public class Installer {
 
     private static final Package _package = getPackage();
     private static final Version VERSION = Util.getVersion();
+
+    // Where they are located in the JAR
     private static final String IVY_SETTINGS_PATH = "installerdata/ivysettings.xml";
     private static final String DEPS_JSON_PATH = "installerdata/dependencies.json";
 
@@ -65,14 +66,14 @@ public class Installer {
 
         Maven MAVEN = _package.maven();
 
-        String metadata = MAVEN.downloadMetadata();
+        String metadata = Util.downloadMetadata(MAVEN);
 
         if (metadata == null) {
             LOGGER.info("Unable to download metadata...");
             return;
         }
 
-        String latestVersion = Maven.parseLatestVersion(metadata);
+        String latestVersion = Util.parseLatestVersion(metadata);
         if (latestVersion == null) {
             LOGGER.info("Unable to parse latest version...");
             return;
@@ -105,7 +106,7 @@ public class Installer {
         try {
             FileUtils.deleteDirectory(new File("libs"));
 
-            var jar = MAVEN.downloadTo(version, new File("libs/%s.jar".formatted(_package.packageName())));
+            var jar = Util.downloadTo(MAVEN, version, new File("libs/%s.jar".formatted(_package.packageName())));
 
             try (JarFile jarFile = new JarFile(jar)) {
                 FileUtils.copyInputStreamToFile(

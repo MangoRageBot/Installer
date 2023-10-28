@@ -32,9 +32,8 @@ import org.apache.ivy.core.settings.IvySettings;
 import org.apache.ivy.util.DefaultMessageLogger;
 import org.apache.ivy.util.Message;
 import org.apache.maven.artifact.versioning.ComparableVersion;
-import org.mangorage.installer.utils.Dependency;
-import org.mangorage.installer.utils.DependencyList;
-import org.mangorage.installer.utils.Util;
+import org.mangorage.installer.api.Dependency;
+import org.mangorage.installer.api.DependencyList;
 
 import java.io.File;
 import java.io.IOException;
@@ -60,7 +59,7 @@ public class CoreInstaller {
         List<Dependency> deps = Util.loadJsonToObject(dependencies, DependencyList.class).libs();
 
         deps.forEach(dependency -> {
-            ModuleRevisionId mrid = dependency.getMRI();
+            ModuleRevisionId mrid = Util.getMRI(dependency);
 
             // Create ResolveOptions and specify the configurations you want to resolve
             ResolveOptions resolveOptions = new ResolveOptions();
