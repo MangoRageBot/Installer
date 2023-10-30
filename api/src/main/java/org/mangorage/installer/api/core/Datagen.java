@@ -42,24 +42,13 @@ public class Datagen {
 
     public static void generateIvySettingsXml(String directory, List<String> repositories) {
 
-        /**
-         * <ivysettings>
-         *     <settings defaultResolver="chain-1"/>
-         *     <resolvers>
-         *         <ibiblio name="matt" m2compatible="true" root="https://repo.mattmalec.com/repository/releases"/>
-         *         <ibiblio name="central" m2compatible="true"/>
-         *         <filesystem name="custom" checkmodified="true">
-         *             <ivy pattern="${custom.base.dir}/ivy/[artifact]-[revision].ivy"/>
-         *             <artifact pattern="${custom.base.dir}/[artifact]-[revision].[ext]"/>
-         *         </filesystem>
-         *         <chain name="chain-1">
-         *             <resolver ref="custom"/>
-         *             <resolver ref="central"/>
-         *             <resolver ref="matt"/>
-         *         </chain>
-         *     </resolvers>
-         * </ivysettings>
-         */
+        Path path = Paths.get(directory);
+        File dir = path.toFile();
+
+        if (!dir.isDirectory())
+            throw new IllegalArgumentException("Must supply a directory, not a file!");
+
+        System.out.println("Generating ivySettings.xml file... to %s".formatted(dir.getAbsolutePath()));
 
         StringBuilder builder = new StringBuilder();
         AtomicInteger counter = new AtomicInteger(0);
