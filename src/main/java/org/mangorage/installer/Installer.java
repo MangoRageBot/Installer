@@ -36,7 +36,7 @@ import java.util.logging.Logger;
 
 public class Installer {
     public static final Logger LOGGER = Logger.getLogger(Installer.class.getName());
-    private static final Package EMPTY = new Package("EXAMPLE_PACKAGE", Maven.EMPTY);
+    private static final Package EMPTY = new Package("EXAMPLE_PACKAGE", "", Maven.EMPTY);
 
 
     private static Package getPackage() {
@@ -106,7 +106,8 @@ public class Installer {
         try {
             FileUtils.deleteDirectory(new File("libs"));
 
-            var jar = Util.downloadTo(MAVEN, version, new File("libs/%s.jar".formatted(_package.packageName())));
+            String dest = _package.packageDest().isBlank() ? "libs" : _package.packageDest();
+            var jar = Util.downloadTo(MAVEN, version, new File("%s/%s.jar".formatted(dest, _package.packageName())));
 
             try (JarFile jarFile = new JarFile(jar)) {
                 FileUtils.copyInputStreamToFile(
