@@ -30,9 +30,22 @@ import org.mangorage.installer.api.Version;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.net.MalformedURLException;
+import java.net.URL;
+import java.net.URLClassLoader;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.text.ParseException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.List;
+import java.util.jar.Attributes;
 import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 import java.util.logging.Logger;
+import java.util.stream.Stream;
 
 public class Installer {
     public static final Logger LOGGER = Logger.getLogger(Installer.class.getName());
@@ -64,8 +77,9 @@ public class Installer {
             return;
         }
 
-        Maven MAVEN = _package.maven();
+        boolean launch = args.length == 1 && args[0].equalsIgnoreCase("-launch");
 
+        Maven MAVEN = _package.maven();
         String metadata = Util.downloadMetadata(MAVEN);
 
         if (metadata == null) {
@@ -94,10 +108,12 @@ public class Installer {
             } else {
                 LOGGER.info("No new Version found for %s!".formatted(_package.packageName()));
             }
+            if (launch) launchJar(args);
         } else {
             LOGGER.info("Installing %s...".formatted(_package.packageName()));
             downloadNewVersion(MAVEN, latestVersion);
             LOGGER.info("Installed Everything for %s!".formatted(_package.packageName()));
+            if (launch) launchJar(args);
         }
     }
 
@@ -133,6 +149,78 @@ public class Installer {
             }
         } catch (IOException e) {
             throw new RuntimeException(e);
+        }
+    }
+
+    private static void addJars(List<URL> urlList, Path directory) throws IOException {
+        try (Stream<Path> files = Files.walk(directory)) {
+            files
+                    .filter(path -> path.toFile().getName().endsWith(".jar"))
+                    .forEach(path -> {
+                        try {
+                            urlList.add(path.toAbsolutePath().toUri().toURL());
+                        } catch (MalformedURLException e) {
+                            throw new RuntimeException(e);
+                        }
+                    });
+        }
+    }
+
+    private static void launchJar(String[] args) {
+
+        String dest = _package.packageDest().isBlank() ? "libs" : _package.packageDest();
+
+        try {
+            File jarFile = new File("%s/%s.jar".formatted(dest, _package.packageName()));
+            URL jarFileURL = jarFile.toURI().toURL();
+
+            LOGGER.info("Launching %s".formatted(jarFile.getName()));
+
+            List<URL> urls = new ArrayList<>();
+            List<Path> directories = List.of(Path.of("libs/"));
+
+            directories.forEach(directory -> {
+                try {
+                    addJars(urls, directory);
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+            });
+
+
+
+
+            try (JarFile jar = new JarFile("%s/%s.jar".formatted(dest, _package.packageName()))) {
+                Manifest manifest = jar.getManifest();
+                if (manifest == null) throw new Exception("No manifest found");
+                Attributes attributes = manifest.getMainAttributes();
+                String mainClass = attributes.getValue("Main-Class");
+                if (mainClass == null) throw new Exception("No Main Class found");
+                urls.add(jarFileURL);
+
+                try (URLClassLoader classLoader = new URLClassLoader(urls.toArray(new URL[urls.size()]), Installer.class.getClassLoader())) {
+                    ClassLoader oldCl = Thread.currentThread().getContextClassLoader();
+                    Thread.currentThread().setContextClassLoader(classLoader);
+                    try {
+                        Class<?> clazz = Class.forName(mainClass, false, classLoader);
+                        Method method = clazz.getDeclaredMethod("main", String[].class);
+                        method.invoke(null, (Object) Arrays.copyOfRange(args, 1, args.length)); // Pass through the args...
+                    } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException |
+                             InvocationTargetException exception) {
+                        throw new RuntimeException(exception);
+                    } finally {
+                        System.err.println("Finished");
+                        Thread.currentThread().setContextClassLoader(oldCl);
+                    }
+                }
+
+            } catch (Exception exception) {
+                LOGGER.info("Unable to launch Jar. Reason: %s".formatted(exception.getMessage()));
+                exception.printStackTrace();
+            }
+        } catch (MalformedURLException exception) {
+            LOGGER.info("Unable to launch Jar. Reason: %s".formatted(exception.getMessage()));
+            exception.printStackTrace();
         }
     }
 }
