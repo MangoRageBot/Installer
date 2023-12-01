@@ -22,4 +22,6 @@
 
 package org.mangorage.installer.api;
 
-public record Package(String packageName, String packageDest, Maven maven) {}
+public record Package(String packageName, String packageDest, Maven maven) {
+    public static final Package EMPTY = new Package("EXAMPLE_PACKAGE", "", Maven.EMPTY);
+}

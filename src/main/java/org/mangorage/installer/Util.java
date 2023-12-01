@@ -22,31 +22,28 @@
 
 package org.mangorage.installer;
 
-import com.google.gson.Gson;
-import com.google.gson.GsonBuilder;
-import org.apache.commons.io.FileUtils;
-import org.apache.commons.io.IOUtils;
-import org.apache.ivy.core.module.id.ModuleRevisionId;
-import org.mangorage.installer.api.Dependency;
 import org.mangorage.installer.api.Maven;
 import org.mangorage.installer.api.Version;
-
-import java.io.BufferedInputStream;
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.URISyntaxException;
 import java.net.URL;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.stream.Collectors;
 
 public class Util {
     private static final String DATA_DIR = "installer/";
-    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
 
-
-
-
-    public static File downloadTo(Maven maven, String version, File dest) {
+    public static File downloadTo(Maven maven, String version, String path) {
         String URL = "%s/%s/%s/%s/%s-%s%s".formatted(
                 maven.repository(),
                 maven.groupId()
@@ -61,23 +58,49 @@ public class Util {
                 maven.jar()
         );
 
-        try {
-            FileUtils.copyURLToFile(new URL(URL), dest);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-        return dest;
+        installUrl(URL, path, false);
+        return new File(path);
     }
 
     public static String downloadMetadata(Maven maven) {
         String url = maven.repository() + "/" + maven.groupId().replace(".", "/") + "/" + maven.artifactId() + "/maven-metadata.xml";
         try {
-            BufferedInputStream in = new BufferedInputStream(new URL(url).openStream());
-            return IOUtils.toString(new InputStreamReader(in));
+            return convertInputStreamToString(new URL(url).openStream());
         } catch (IOException e) {
             // handle exception
         }
         return null;
+    }
+
+    public static String convertInputStreamToString(InputStream inputStream) {
+        String result;
+        try (BufferedReader bufferedReader = new BufferedReader(new InputStreamReader(inputStream))) {
+            // Use Java 8+ streams to collect lines into a single String
+            result = bufferedReader.lines().collect(Collectors.joining(System.lineSeparator()));
+            inputStream.close();
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+        return result;
+    }
+
+    public static void deleteEverythingIfExists(Path path) {
+        if (Files.exists(path)) {
+            try {
+                Files.walk(path).forEach(a -> {
+                    if (a.toFile().isFile()) {
+                        try {
+                            Files.delete(a);
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+                    }
+                });
+                Files.deleteIfExists(path);
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
     }
 
     public static String parseLatestVersion(String metadata) {
@@ -90,12 +113,26 @@ public class Util {
         return null;
     }
 
-    public static ModuleRevisionId getMRI(Dependency dependency) {
-        return ModuleRevisionId.newInstance(dependency.groupId(), dependency.artifactId(), dependency.version());
+    public static void saveVersion(String version) {
+        String data = """
+                {
+                  "version": "%s"
+                }
+                """.formatted(version);
+        writeToFile("installer/version.json", data);
     }
 
-    public static void saveVersion(String version) {
-        saveObjectToFile(new Version(version), DATA_DIR, "version.json");
+    public static void writeToFile(String filePath, String content) {
+        Path path = Paths.get(filePath);
+
+        try {
+            // Write the string to the file, creating it if it doesn't exist
+            Files.write(path, content.getBytes(StandardCharsets.UTF_8));
+            System.out.println("String successfully written to the file.");
+        } catch (IOException e) {
+            // Handle the exception if there is an error
+            e.printStackTrace();
+        }
     }
 
     public static Version getVersion() {
@@ -104,42 +141,54 @@ public class Util {
             file.getParentFile().mkdirs();
         if (!file.exists())
             return null;
-        return loadJsonToObject("%s/version.json".formatted(DATA_DIR), Version.class);
-    }
-
-    public static void saveObjectToFile(Object object, String directory, String fileName) {
         try {
-            String jsonData = GSON.toJson(object);
-
-            File dirs = new File(directory);
-            if (!dirs.exists() && !dirs.mkdirs()) return;
-            Files.writeString(Path.of("%s/%s".formatted(directory, fileName)), jsonData);
+            List<String> lines = readLinesFromInputStream(file.toURI().toURL().openStream());
+            String value = lines.get(1).split(":")[1]; // "version":"verionid"
+            return new Version(value.replaceAll("\"", "").replaceAll(" ", ""));
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
-    public static void deleteFile(String directory, String fileName) {
-        try {
-            Files.delete(Path.of("%s/%s".formatted(directory, fileName)));
+    public static List<String> readLinesFromInputStream(InputStream inputStream) {
+        List<String> lines = new ArrayList<>();
+
+        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
+            String line;
+            while ((line = reader.readLine()) != null && !line.isEmpty()) {
+                lines.add(line);
+            }
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException(e);
         }
+
+        return lines;
     }
 
-    public static <T> T loadJsonToObject(String file, Class<T> cls) {
+    public static void installUrl(String url, String destinationPath, boolean resolveName) {
         try {
-            return GSON.fromJson(Files.readString(Path.of(file)), cls);
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
+            // Create a URL object
+            URL urlObject = new URL(url);
 
-    public static <T> T loadJsonToObject(File file, Class<T> cls) {
-        try {
-            return GSON.fromJson(Files.readString(file.toPath()), cls);
+            // Open a stream from the URL
+            try (InputStream inputStream = urlObject.openStream()) {
+                // Create the destination path
+                String path = destinationPath;
+                if (resolveName) {
+                    Path file = Path.of(urlObject.toURI().getPath());
+                    path = path + "/" + file.getFileName();
+                }
+                Path destination = Path.of(path);
+                if (!Files.exists(destination.getParent())) Files.createDirectories(destination.getParent());
+                Files.copy(inputStream, destination, StandardCopyOption.REPLACE_EXISTING);
+
+                System.out.println("Installation complete. File saved to: " + destination);
+            } catch (URISyntaxException e) {
+                throw new RuntimeException(e);
+            }
+
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new IllegalStateException(e);
         }
     }
 }

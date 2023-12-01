@@ -17,7 +17,7 @@ apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'java'
 
 group = 'org.mangorage'
-version = '1.0.1'
+version = '1.1.0'
 
 repositories {
     mavenCentral()
@@ -28,10 +28,6 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter'
 
     implementation project(":api")
-    implementation("commons-io:commons-io:2.14.0")
-    implementation("com.google.code.gson:gson:2.10.1")
-    implementation("org.apache.ivy:ivy:2.5.0")
-    implementation("org.apache.maven:maven-artifact:3.6.3")
 }
 
 test {
