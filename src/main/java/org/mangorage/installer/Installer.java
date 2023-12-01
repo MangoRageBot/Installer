@@ -33,8 +33,11 @@ import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
 import java.util.jar.Manifest;
@@ -49,9 +52,6 @@ public class Installer {
     private static final Package _package = getPackage();
     private static final Version VERSION = Util.getVersion();
 
-    // Where they are located in the JAR
-    private static final String IVY_SETTINGS_PATH = "installerdata/ivysettings.xml";
-    private static final String DEPS_JSON_PATH = "installerdata/dependencies.json";
     private static final String DEPS_PATH = "installerdata/deps.txt";
 
 
@@ -100,20 +100,62 @@ public class Installer {
         }
     }
 
+    private static String getFileName(String s) {
+        String[] parts = s.split("/");
+        return parts[parts.length - 1];
+    }
+
 
     private static void downloadNewVersion(Maven MAVEN, String version) {
         try {
-            Path path = Path.of("libs/").toAbsolutePath();
-            Util.deleteEverythingIfExists(path);
-
             String dest = _package.packageDest().isBlank() ? "libs" : _package.packageDest();
             var jar = Util.downloadTo(MAVEN, version, "%s/%s.jar".formatted(dest, _package.packageName()));
 
             try (JarFile jarFile = new JarFile(jar)) {
-                var list = Util.readLinesFromInputStream(jarFile.getInputStream(jarFile.getEntry(DEPS_PATH)));
-                list.forEach(a -> {
-                    Util.installUrl(a, "libs/", true);
-                });
+                var jarsToDownload = new ArrayList<>(Util.readLinesFromInputStream(jarFile.getInputStream(jarFile.getEntry(DEPS_PATH))));
+                var path = Path.of("libs/").toAbsolutePath();
+                if (Files.exists(path)) {
+                    var oldJars = new HashMap<String, Path>();
+                    var newJars = new HashMap<String, String>();
+
+                    jarsToDownload.forEach(a -> {
+                        newJars.put(getFileName(a), a);
+                    });
+
+                    Files.walk(path).forEach(a -> {
+                        if (a.toFile().isFile()) {
+                            oldJars.put(a.getFileName().toString(), a);
+                        }
+                    });
+
+                    oldJars.forEach((a, b) -> {
+                        if (!newJars.containsKey(a)) {
+                            try {
+                                System.out.println("Deleting unused jar %s".formatted(a));
+                                Files.delete(b);
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+                        }
+                    });
+
+
+                    newJars.forEach((a, b) -> {
+                        if (oldJars.containsKey(a)) {
+                            System.out.printf("Keeping Jar %s. Skipping Install%n", a);
+                            jarsToDownload.remove(b);
+                        }
+                    });
+
+                    jarsToDownload.forEach(a -> {
+                        Util.installUrl(a, "libs/", true);
+                    });
+
+                } else {
+                    jarsToDownload.forEach(a -> {
+                        Util.installUrl(a, "libs/", true);
+                    });
+                }
                 Util.saveVersion(version);
             }
         } catch (IOException e) {
@@ -122,7 +164,6 @@ public class Installer {
     }
 
     private static void launchJar(String[] args) {
-
         String dest = _package.packageDest().isBlank() ? "libs" : _package.packageDest();
 
         try {
