@@ -15,9 +15,10 @@ buildscript {
 
 apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'java'
+apply plugin: 'maven-publish'
 
 group = 'org.mangorage'
-version = '1.1.0'
+version = '2.0.0'
 
 repositories {
     mavenCentral()
@@ -28,6 +29,9 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter'
 
     implementation project(":api")
+    implementation 'net.sf.jopt-simple:jopt-simple:5.0.4'
+
+    shadow 'net.sf.jopt-simple:jopt-simple:5.0.4'
 }
 
 test {
@@ -44,5 +48,43 @@ jar {
 
     manifest {
         attributes 'Main-Class': 'org.mangorage.installer.Installer'
+    }
+}
+
+publishing {
+    publications.register("gradleutils", MavenPublication) {
+        artifact jar
+
+        groupId = 'io.github.realmangorage'
+        artifactId = 'gradleutils'
+
+        pom {
+            name = 'MangoBot Installer'
+            description = 'The Installer for my Discord Bot Project'
+            url = 'https://github.com/MangoRageBot/Installer'
+            issueManagement {
+                system = 'github'
+                url = 'https://github.com/MangoRageBot/Installer/issues'
+            }
+            developers {
+                developer {
+                    id = 'mangorage'
+                    name = 'MangoRage'
+                }
+            }
+        }
+    }
+
+    repositories {
+        maven {
+            def releasesRepoUrl = 'https://s01.oss.sonatype.org/content/repositories/releases/'
+            def snapshotsRepoUrl = 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
+            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+            group "io.github.mangorage"
+            credentials {
+                username = findProperty("mango.maven.username")
+                password = findProperty("mango.maven.password")
+            }
+        }
     }
 }

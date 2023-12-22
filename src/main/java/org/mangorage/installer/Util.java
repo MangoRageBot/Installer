@@ -64,6 +64,7 @@ public class Util {
 
     public static String downloadMetadata(Maven maven) {
         String url = maven.repository() + "/" + maven.groupId().replace(".", "/") + "/" + maven.artifactId() + "/maven-metadata.xml";
+        System.out.println("Downloading Metadata from %s".formatted(url));
         try {
             return convertInputStreamToString(new URL(url).openStream());
         } catch (IOException e) {

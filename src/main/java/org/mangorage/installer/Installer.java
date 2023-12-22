@@ -22,6 +22,9 @@
 
 package org.mangorage.installer;
 
+import joptsimple.OptionParser;
+import joptsimple.OptionSpec;
+import joptsimple.OptionSpecBuilder;
 import org.mangorage.installer.api.Maven;
 import org.mangorage.installer.api.Package;
 import org.mangorage.installer.api.Version;
@@ -56,12 +59,24 @@ public class Installer {
 
 
     public static void main(String[] args) {
+        System.out.println("Starting Installer...");
+        // Parser
+        OptionParser parser = new OptionParser();
+
+        // Option Args
+        OptionSpec<Void> launchArg = parser
+                .accepts("launch", "Wether or not to launch the program that will be installed/updated");
+
+        // Parsed args[]
+        var options = parser.parse(args);
+
+        // Flags / Values for Args
+        var launch = options.has(launchArg);
+
         if (_package == EMPTY) {
             LOGGER.info("Please configure package.json");
             return;
         }
-
-        boolean launch = args.length == 1 && args[0].equalsIgnoreCase("-launch");
 
         Maven MAVEN = _package.maven();
         String metadata = Util.downloadMetadata(MAVEN);
