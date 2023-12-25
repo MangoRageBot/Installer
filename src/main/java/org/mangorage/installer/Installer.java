@@ -227,7 +227,24 @@ public class Installer {
         System.out.println("Finished processing dependencies");
     }
 
-    public static void launchJar(List<File> jars, String mainClass,  String[] args) {
+    public static String findMainClass(String jarFile, List<File> files) {
+
+        for (File file : files) {
+            if (file.getName().equals(jarFile)) {
+                try (var jf = new JarFile(file)) {
+                    return jf.getManifest().getMainAttributes().getValue("Main-Class");
+                } catch (IOException e) {
+                    throw new IllegalStateException(e);
+                }
+            }
+        }
+
+        return "";
+    }
+
+    public static void launchJar(List<File> jars, String jarFile,  String[] args) {
+        String mainClass = findMainClass(jarFile, jars);
+
         ClassLoader oldCl = Thread.currentThread().getContextClassLoader();
         URL[] urls = jars.stream().map(jar -> {
             try {
