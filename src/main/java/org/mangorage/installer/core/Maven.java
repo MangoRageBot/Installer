@@ -20,8 +20,13 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package org.mangorage.installer.api;
+package org.mangorage.installer.core;
 
-public record Package(String packageName, String packageDest, Maven maven) {
-    public static final Package EMPTY = new Package("EXAMPLE_PACKAGE", "", Maven.EMPTY);
-}
+/**
+ * Represents a Maven dependency.
+ *
+ * @param repository (https://s01.oss.sonatype.org/content/repositories/releases/)
+ * @param groupId    (io.github.realmangorage)
+ * @param artifactId (mangobot)
+ */
+public record Maven(String repository, String groupId, String artifactId) { }

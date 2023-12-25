@@ -1,36 +1,15 @@
-/*
- * Copyright (c) 2023. MangoRage
- *
- * Permission is hereby granted, free of charge, to any person obtaining a copy
- * of this software and associated documentation files (the "Software"), to deal
- * in the Software without restriction, including without limitation the rights
- * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
- * copies of the Software, and to permit persons to whom the Software is
- * furnished to do so, subject to the following conditions:
- *
- * The above copyright notice and this permission notice shall be included in all
- * copies or substantial portions of the Software.
- *
- * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
- * EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
- * MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
- * IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
- * DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
- * OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE
- * OR OTHER DEALINGS IN THE SOFTWARE.
- */
-
 package org.mangorage.installer;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSpec;
-import joptsimple.OptionSpecBuilder;
 import joptsimple.util.PathConverter;
-import org.mangorage.installer.api.Maven;
-import org.mangorage.installer.api.Package;
-import org.mangorage.installer.api.Version;
+import org.mangorage.installer.core.Dependency;
+import org.mangorage.installer.core.Maven;
+import org.mangorage.installer.core.Util;
 
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileWriter;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -40,113 +19,239 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
-import java.util.jar.Attributes;
+import java.util.List;
 import java.util.jar.JarFile;
-import java.util.jar.Manifest;
-import java.util.logging.Logger;
 
-import static org.mangorage.installer.PackageReader.getPackage;
-import static org.mangorage.installer.api.Package.EMPTY;
-
+/**
+ * Two Things
+ *
+ * Main:
+ *   - Install all plugins/addons
+ *   - Go thru their dependencies and get them all into a list
+ *   - Filter thru Dependencies to prevent duplicate dependencys
+ *   - Install the Dependencies
+ *
+ *  ManualJar
+ *   - Skip the Installing process, they already exist
+ *   - Go thru their dependencies and get them all into a list
+ *   - Filter thru Dependencies to prevent duplicate dependencys
+ *   - Install the Dependencies
+ *
+ *
+ *
+ *   Plugin/Addon format (plugins.txt)
+ *    - Repo
+ *    - GroupID
+ *    - Artifact
+ *    - fileName
+ *    We fetch the latest always
+ *
+ *
+ */
 public class Installer {
-    public static final Logger LOGGER = Logger.getLogger(Installer.class.getName());
-
-    private static final Package _package = getPackage();
-    private static final Version VERSION = Util.getVersion();
-
     private static final String DEPS_PATH = "installerdata/deps.txt";
-
-    // -launch
-    // -manualJar jar
-    // -manualJarVersion version
-
     public static void main(String[] args) {
         System.out.println("Starting Installer...");
         // Parser
         OptionParser parser = new OptionParser();
 
         // Option Args
-        OptionSpec<Void> launchArg = parser
-                .accepts("launch", "Wether or not to launch the program that will be installed/updated");
+        OptionSpec<String> launchArg = parser
+                .accepts("launch", "Wether or not to launch the program that will be installed/updated")
+                .withRequiredArg();
         OptionSpec<Path> manualJar = parser
                 .accepts("manualJar", "Provide a path to the jar")
                 .withRequiredArg()
+                .withValuesSeparatedBy(";")
                 .withValuesConvertedBy(new PathConverter());
-        OptionSpec<String> manualVersion = parser
-                .accepts("manualJarVersion")
-                .requiredIf(manualJar)
-                .withRequiredArg();
 
         // Parsed args[]
         var options = parser.parse(args);
         var launch = options.has(launchArg);
+        var mainClass = options.valueOf(launchArg);
+        List<File> jars;
 
-
-        if (!options.has(manualJar)) {
-            if (_package == EMPTY) {
-                LOGGER.info("Please configure package.json");
-                return;
-            }
-
-            Maven MAVEN = _package.maven();
-            String metadata = Util.downloadMetadata(MAVEN);
-
-            if (metadata == null) {
-                LOGGER.info("Unable to download metadata...");
-                return;
-            }
-
-            String latestVersion = Util.parseLatestVersion(metadata);
-            if (latestVersion == null) {
-                LOGGER.info("Unable to parse latest version...");
-                return;
-            }
-
-
-            if (VERSION != null) {
-                LOGGER.info("Checking for Updates...");
-
-                var oldVersion = VERSION.version();
-                File jar = null;
-                if (!latestVersion.equals(oldVersion)) {
-                    LOGGER.info("Found latest Version: " + latestVersion);
-                    LOGGER.info("Downloading update for %s...".formatted(_package.packageName()));
-                    jar = downloadNewVersion(MAVEN, latestVersion);
-                    LOGGER.info("Downloaded update for %s!".formatted(_package.packageName()));
-                } else {
-                    LOGGER.info("No new Version found for %s!".formatted(_package.packageName()));
-                }
-                if (launch && jar != null) launchJar(jar, args);
-            } else {
-                LOGGER.info("Installing %s...".formatted(_package.packageName()));
-                var jar = downloadNewVersion(MAVEN, latestVersion);
-                LOGGER.info("Installed Everything for %s!".formatted(_package.packageName()));
-                if (launch && jar != null) launchJar(jar, args);
-            }
+        if (options.has(manualJar)) {
+            jars = options.valuesOf(manualJar).stream().map(Path::toFile).toList();
         } else {
-            File jarFile = options.valueOf(manualJar).toFile();
-            LOGGER.info("Installing libraries for %s".formatted(jarFile.getName()));
-            downloadNewVersion(jarFile, options.valueOf(manualVersion));
-            if (launch) launchJar(jarFile, args);
+            jars = processPackages();
         }
 
+        if (jars.isEmpty()) {
+            throw new IllegalStateException("Packages.txt was blank!");
+        }
+
+        var dependencies = processJars(jars);
+        processDependencies(dependencies);
+
+        // Launch Jar
+        if (launch) launchJar(jars, mainClass, args);
     }
 
-    private static String getFileName(String s) {
-        String[] parts = s.split("/");
-        return parts[parts.length - 1];
+    public static void checkInstalled() {
+        // Handle checking the installed packages... to ensure they still exist, otherwise update...
+        // TODO: finish
     }
 
 
-    private static File downloadNewVersion(Maven MAVEN, String version) {
-        String dest = _package.packageDest().isBlank() ? "libs" : _package.packageDest();
-        var jar = Util.downloadTo(MAVEN, version, "%s/%s.jar".formatted(dest, _package.packageName()));
-        return downloadNewVersion(jar, version);
+    public static List<File> processPackages() {
+        System.out.println("Processing installer/packages.txt");
+        File file = new File("installer/packages.txt");
+        if (!file.exists())
+            throw new IllegalStateException("installer/packages.txt not found!");
+
+        HashMap<String, String> versions = new HashMap<>();
+        HashMap<String, String> newVersions = new HashMap<>();
+
+        File installed = new File("installer/installed.txt");
+        if (installed.exists()) {
+            // Handle
+            try (var is = new FileInputStream(installed)) {
+                var list = Util.readLinesFromInputStream(is);
+                list.forEach(l -> {
+                    String[] versionInfo = l.split("=");
+                    if (versionInfo.length == 2) {
+                        versions.put(versionInfo[0], versionInfo[1]);
+                    }
+                });
+                installed.delete();
+            } catch (IOException e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+
+        ArrayList<File> results = new ArrayList<>();
+
+        try (var is = new FileInputStream(file)) {
+            Util.readLinesFromInputStream(is).forEach(line -> {
+                String[] data = line.split(";");
+                if (data.length == 5) {
+                    // mangobot.jar;plugins/;https://s01.oss.sonatype.org/content/repositories/releases;io.github.realmangorage;mangobot
+                    String jarName = data[0];
+                    String jarDest = data[1];
+                    String repo = data[2];
+                    String groupID = data[3];
+                    String artifact = data[4];
+
+                    Maven maven = new Maven(
+                            repo,
+                            groupID,
+                            artifact
+                    );
+
+                    String metadata = Util.downloadMetadata(maven);
+                    String latestVersion = Util.parseLatestVersion(metadata);
+
+                    newVersions.put(jarName, latestVersion);
+                    if (latestVersion.equals(versions.get(jarName))) {
+                        File jar = Path.of("%s/%s".formatted(jarDest, jarName)).toAbsolutePath().toFile();
+                        results.add(jar);
+                        System.out.println("Found no updates for %s".formatted(jarName));
+                    } else {
+                        System.out.println("Found updates for %s and installing libraries".formatted(jarName));
+                        File dest = new File(jarDest);
+                        try {
+                            Files.createDirectories(dest.toPath());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
+                        }
+
+                        File jar = Util.downloadTo(maven, latestVersion, "%s/%s".formatted(dest.getAbsolutePath(), jarName));
+                        results.add(jar);
+                    }
+                }
+            });
+
+            try (var fileIS = new FileWriter(installed)) {
+                newVersions.forEach((name, version) -> {
+                    try {
+                        fileIS.append("%s=%s".formatted(name, version)).append("\n");
+                    } catch (IOException e) {
+                        throw new RuntimeException(e);
+                    }
+                });
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
+
+        return results;
     }
 
-    private static File downloadNewVersion(File jar, String version) {
+    public static List<Dependency> processJars(List<File> jars) {
+        System.out.println("Processing Jars");
+        ArrayList<Dependency> deps = new ArrayList<>();
+
+        jars.forEach(jar -> {
+            try (var jf = new JarFile(jar)) {
+                var jarsToDownload = new ArrayList<>(Util.readLinesFromInputStream(jf.getInputStream(jf.getEntry(DEPS_PATH))));
+                // Handle jarsToDownload
+                jarsToDownload.forEach(dep -> {
+                    var depData = dep.split(" ");
+                    // String repository, String groupId, String artifactId, String version, String jarFileName
+                    if (depData.length == 5) {
+                        Dependency dependency = new Dependency(
+                                depData[0],
+                                depData[1],
+                                depData[2],
+                                depData[3],
+                                depData[4]
+                        );
+
+                        System.out.println("Found dependency %s version %s".formatted(dependency.artifactId(), dependency.version()));
+                        deps.add(dependency);
+                    }
+                });
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
+        });
+
+        return deps;
+    }
+
+    public static void processDependencies(List<Dependency> dependencies) {
+        // TODO: Update to allow for checking old vs new Deps if we need to actually install them!
+        // TODO: Due to them possibly already existing...
+
+        System.out.println("Processing dependencies for jars");
+        var libs = Path.of("libs/").toAbsolutePath();
+        dependencies.forEach(dep -> {
+            System.out.println("Downloading dependency %s to %s".formatted(dep.jarFileName(), libs));
+            Util.installUrl(dep.getDownloadURL(), libs.toString(), true);
+        });
+        System.out.println("Finished processing dependencies");
+    }
+
+    public static void launchJar(List<File> jars, String mainClass,  String[] args) {
+        ClassLoader oldCl = Thread.currentThread().getContextClassLoader();
+        URL[] urls = jars.stream().map(jar -> {
+            try {
+                return jar.toURI().toURL();
+            } catch (MalformedURLException e) {
+                throw new RuntimeException(e);
+            }
+        }).toList().toArray(new URL[jars.size()]);
+        try (var cl = new URLClassLoader(urls, Installer.class.getClassLoader())) {
+            Thread.currentThread().setContextClassLoader(cl);
+            Class<?> clazz = Class.forName(mainClass, false, cl);
+            Method method = clazz.getDeclaredMethod("main", String[].class);
+            method.invoke(null, (Object) args); // Pass through the args...
+        } catch (IOException | ClassNotFoundException e) {
+            throw new IllegalStateException(e);
+        } catch (InvocationTargetException | NoSuchMethodException | IllegalAccessException e) {
+            throw new RuntimeException(e);
+        } finally {
+            Thread.currentThread().setContextClassLoader(oldCl);
+        }
+    }
+    /*
+    Old code for reference
+        private static File downloadNewVersion(File jar, String version) {
         try {
             try (JarFile jarFile = new JarFile(jar)) {
                 var jarsToDownload = new ArrayList<>(Util.readLinesFromInputStream(jarFile.getInputStream(jarFile.getEntry(DEPS_PATH))));
@@ -200,44 +305,6 @@ public class Installer {
             throw new RuntimeException(e);
         }
     }
+     */
 
-    private static void launchJar(File jarFile, String[] args) {
-
-        try {
-            URL jarFileURL = jarFile.toURI().toURL();
-
-            LOGGER.info("Launching %s".formatted(jarFile.getName()));
-
-            try (JarFile jar = new JarFile(jarFile)) {
-                Manifest manifest = jar.getManifest();
-                if (manifest == null) throw new Exception("No manifest found");
-                Attributes attributes = manifest.getMainAttributes();
-                String mainClass = attributes.getValue("Main-Class");
-                if (mainClass == null) throw new Exception("No Main Class found");
-
-                try (URLClassLoader classLoader = new URLClassLoader(new URL[]{jarFileURL}, Installer.class.getClassLoader())) {
-                    ClassLoader oldCl = Thread.currentThread().getContextClassLoader();
-                    Thread.currentThread().setContextClassLoader(classLoader);
-                    try {
-                        Class<?> clazz = Class.forName(mainClass, false, classLoader);
-                        Method method = clazz.getDeclaredMethod("main", String[].class);
-                        method.invoke(null, (Object) Arrays.copyOfRange(args, 1, args.length)); // Pass through the args...
-                    } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException |
-                             InvocationTargetException exception) {
-                        throw new RuntimeException(exception);
-                    } finally {
-                        System.err.println("Finished");
-                        Thread.currentThread().setContextClassLoader(oldCl);
-                    }
-                }
-
-            } catch (Exception exception) {
-                LOGGER.info("Unable to launch Jar. Reason: %s".formatted(exception.getMessage()));
-                exception.printStackTrace();
-            }
-        } catch (MalformedURLException exception) {
-            LOGGER.info("Unable to launch Jar. Reason: %s".formatted(exception.getMessage()));
-            exception.printStackTrace();
-        }
-    }
 }

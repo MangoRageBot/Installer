@@ -20,22 +20,21 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package org.mangorage.installer.api;
+package org.mangorage.installer.core;
 
-/**
- * Represents a Maven dependency.
- *
- * @param repository (https://s01.oss.sonatype.org/content/repositories/releases/)
- * @param groupId    (io.github.realmangorage)
- * @param artifactId (mangobot)
- */
-public record Maven(String repository, String groupId, String artifactId, String version, String jar) {
-    public static final Maven EMPTY = new Maven(
-            "EXAMPLE_REPO_URL",
-            "EXAMPLE_GROUPID",
-            "EXAMPLE_ARTIFACTID",
-            "EXAMPLE_VERSION",
-            "EXAMPLE_JAR_NAME"
+public record Dependency(String repository, String groupId, String artifactId, String version, String jarFileName) {
+    public static String fix(String value) {
+        if (value.endsWith("/")) {
+            return value.substring(0, value.length() - 1);
+        }
+        return value;
+    }
 
-    );
+    public static String fixDot(String value) {
+        return value.replaceAll("\\.", "/");
+    }
+
+    public String getDownloadURL() {
+        return "%s/%s/%s/%s/%s".formatted(fix(repository), fixDot(groupId), artifactId, version, jarFileName);
+    }
 }

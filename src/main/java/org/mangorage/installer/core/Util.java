@@ -20,10 +20,8 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package org.mangorage.installer;
+package org.mangorage.installer.core;
 
-import org.mangorage.installer.api.Maven;
-import org.mangorage.installer.api.Version;
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -44,7 +42,7 @@ public class Util {
     private static final String DATA_DIR = "installer/";
 
     public static File downloadTo(Maven maven, String version, String path) {
-        String URL = "%s/%s/%s/%s/%s-%s%s".formatted(
+        String URL = "%s/%s/%s/%s/%s-%s.jar".formatted(
                 maven.repository(),
                 maven.groupId()
                         .replace(
@@ -54,8 +52,7 @@ public class Util {
                 maven.artifactId(),
                 version,
                 maven.artifactId(),
-                version,
-                maven.jar()
+                version
         );
 
         installUrl(URL, path, false);
@@ -68,9 +65,8 @@ public class Util {
         try {
             return convertInputStreamToString(new URL(url).openStream());
         } catch (IOException e) {
-            // handle exception
+            throw new IllegalStateException(e);
         }
-        return null;
     }
 
     public static String convertInputStreamToString(InputStream inputStream) {
@@ -111,7 +107,7 @@ public class Util {
                 return line.substring(line.indexOf("<latest>") + 8, line.indexOf("</latest>"));
             }
         }
-        return null;
+        return "NO VERSION FOUND";
     }
 
     public static void saveVersion(String version) {
@@ -133,21 +129,6 @@ public class Util {
         } catch (IOException e) {
             // Handle the exception if there is an error
             e.printStackTrace();
-        }
-    }
-
-    public static Version getVersion() {
-        File file = new File("%s/version.json".formatted(DATA_DIR));
-        if (!file.getParentFile().exists())
-            file.getParentFile().mkdirs();
-        if (!file.exists())
-            return null;
-        try {
-            List<String> lines = readLinesFromInputStream(file.toURI().toURL().openStream());
-            String value = lines.get(1).split(":")[1]; // "version":"verionid"
-            return new Version(value.replaceAll("\"", "").replaceAll(" ", ""));
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
     }
 
@@ -189,6 +170,7 @@ public class Util {
             }
 
         } catch (IOException e) {
+            System.out.println(url);
             throw new IllegalStateException(e);
         }
     }
