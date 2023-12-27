@@ -53,6 +53,7 @@ public class Installer {
     private static final String DEPS_PATH = "installerdata/deps.txt";
     public static void main(String[] args) {
         System.out.println("Starting Installer...");
+        System.out.println("Arguments Supplied: %s".formatted(List.of(args)));
         // Parser
         OptionParser parser = new OptionParser();
 
@@ -187,6 +188,7 @@ public class Installer {
         ArrayList<Dependency> deps = new ArrayList<>();
 
         jars.forEach(jar -> {
+            System.out.println("Processing Jar %s".formatted(jar.getName()));
             try (var jf = new JarFile(jar)) {
                 var jarsToDownload = new ArrayList<>(Util.readLinesFromInputStream(jf.getInputStream(jf.getEntry(DEPS_PATH))));
                 // Handle jarsToDownload
