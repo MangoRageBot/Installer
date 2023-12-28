@@ -100,12 +100,11 @@ public class Util {
         }
     }
 
-    public static String parseLatestVersion(String metadata) {
-        String[] lines = metadata.split("\n");
-        for (String line : lines) {
-            if (line.contains("<latest>")) {
-                return line.substring(line.indexOf("<latest>") + 8, line.indexOf("</latest>"));
-            }
+    public static String parseLatestVersion(String metadata, String versionRange) {
+        var versions = Version.parseMetadata(metadata);
+        var latest = Version.getLatestVersion(versions, versionRange);
+        if (latest != null) {
+            return latest.getOriginal();
         }
         return "NO VERSION FOUND";
     }

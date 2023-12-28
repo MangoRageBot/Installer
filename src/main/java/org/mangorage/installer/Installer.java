@@ -6,6 +6,7 @@ import joptsimple.util.PathConverter;
 import org.mangorage.installer.core.Dependency;
 import org.mangorage.installer.core.Maven;
 import org.mangorage.installer.core.Util;
+import org.mangorage.installer.core.Version;
 
 import java.io.File;
 import java.io.FileInputStream;
@@ -80,7 +81,7 @@ public class Installer {
         }
 
         if (jars.isEmpty()) {
-            throw new IllegalStateException("Packages.txt was blank!");
+            throw new IllegalStateException("packages.txt was blank!");
         }
 
         var dependencies = processJars(jars);
@@ -128,13 +129,14 @@ public class Installer {
         try (var is = new FileInputStream(file)) {
             Util.readLinesFromInputStream(is).forEach(line -> {
                 String[] data = line.split(";");
-                if (data.length == 5) {
-                    // mangobot.jar;plugins/;https://s01.oss.sonatype.org/content/repositories/releases;io.github.realmangorage;mangobot
-                    String jarName = data[0];
-                    String jarDest = data[1];
-                    String repo = data[2];
-                    String groupID = data[3];
-                    String artifact = data[4];
+                if (data.length == 6) {
+                    // 1.0.+;mangobot.jar;plugins/;https://s01.oss.sonatype.org/content/repositories/releases;io.github.realmangorage;mangobot
+                    String versionRange = data[0];
+                    String jarName = data[1];
+                    String jarDest = data[2];
+                    String repo = data[3];
+                    String groupID = data[4];
+                    String artifact = data[5];
 
                     Maven maven = new Maven(
                             repo,
@@ -143,7 +145,7 @@ public class Installer {
                     );
 
                     String metadata = Util.downloadMetadata(maven);
-                    String latestVersion = Util.parseLatestVersion(metadata);
+                    String latestVersion = Util.parseLatestVersion(metadata, versionRange);
 
                     newVersions.put(jarName, latestVersion);
                     if (latestVersion.equals(versions.get(jarName))) {
