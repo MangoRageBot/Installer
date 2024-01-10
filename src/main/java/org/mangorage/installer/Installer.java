@@ -20,8 +20,16 @@ import java.net.URLClassLoader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.jar.JarFile;
 
 /**
@@ -51,6 +59,7 @@ import java.util.jar.JarFile;
  *
  */
 public class Installer {
+    private static final ExecutorService TASKS = Executors.newSingleThreadExecutor();
     private static final String DEPS_PATH = "installerdata/deps.txt";
     public static void main(String[] args) {
         System.out.println("Starting Installer...");
@@ -144,25 +153,35 @@ public class Installer {
                             artifact
                     );
 
-                    String metadata = Util.downloadMetadata(maven);
-                    String latestVersion = Util.parseLatestVersion(metadata, versionRange);
-
-                    newVersions.put(jarName, latestVersion);
-                    if (latestVersion.equals(versions.get(jarName))) {
-                        File jar = Path.of("%s/%s".formatted(jarDest, jarName)).toAbsolutePath().toFile();
+                    Future<String> metadataFuture = TASKS.submit(() -> Util.downloadMetadata(maven));
+                    String metadata = null;
+                    Path path = Path.of("%s/%s".formatted(jarDest, jarName));
+                    try {
+                        metadata = metadataFuture.get(10, TimeUnit.SECONDS);
+                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                        System.out.println("Failed to get metadata file. Attempting to move onto next item...");
+                        File jar = path.toAbsolutePath().toFile();
                         results.add(jar);
-                        System.out.println("Found no updates for %s".formatted(jarName));
-                    } else {
-                        System.out.println("Found updates for %s and installing libraries".formatted(jarName));
-                        File dest = new File(jarDest);
-                        try {
-                            Files.createDirectories(dest.toPath());
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
+                    } finally {
+                        String latestVersion = Util.parseLatestVersion(metadata, versionRange);
+
+                        newVersions.put(jarName, latestVersion);
+                        if (latestVersion.equals(versions.get(jarName))) {
+                            File jar = path.toAbsolutePath().toFile();
+                            results.add(jar);
+                            System.out.println("Found no updates for %s".formatted(jarName));
+                        } else {
+                            System.out.println("Found updates for %s and installing libraries".formatted(jarName));
+                            File dest = new File(jarDest);
+                            try {
+                                Files.createDirectories(dest.toPath());
+                            } catch (IOException e) {
+                                throw new RuntimeException(e);
+                            }
+
+                            File jar = Util.downloadTo(maven, latestVersion, "%s/%s".formatted(dest.getAbsolutePath(), jarName));
+                            results.add(jar);
                         }
-
-                        File jar = Util.downloadTo(maven, latestVersion, "%s/%s".formatted(dest.getAbsolutePath(), jarName));
-                        results.add(jar);
                     }
                 }
             });
@@ -221,13 +240,47 @@ public class Installer {
     public static void processDependencies(List<Dependency> dependencies) {
         // TODO: Update to allow for checking old vs new Deps if we need to actually install them!
         // TODO: Due to them possibly already existing...
+        // TODO: Remove Unused Jars
 
         System.out.println("Processing dependencies for jars");
         var libs = Path.of("libs/").toAbsolutePath();
+
+        ArrayList<File> currentJarsFiles = new ArrayList<>();
+        ArrayList<String> currentJars = new ArrayList<>();
+        ArrayList<String> installedJars = new ArrayList<>();
+
+        var libsFolder = libs.toFile();
+        if (libsFolder.exists() && libsFolder.isDirectory()) {
+            var files = libsFolder.listFiles();
+            if (files != null) {
+                currentJarsFiles.addAll(
+                        Arrays.stream(files)
+                                .filter(file -> file.getName().endsWith(".jar"))
+                                .toList()
+                );
+                currentJars.addAll(currentJarsFiles.stream().map(File::getName).toList());
+            }
+        }
+
         dependencies.forEach(dep -> {
-            System.out.println("Downloading dependency %s to %s".formatted(dep.jarFileName(), libs));
-            Util.installUrl(dep.getDownloadURL(), libs.toString(), true);
+            if (currentJars.contains(dep.jarFileName())) {
+                System.out.println("Skipping Dependency Install %s, already Exists!".formatted(dep.jarFileName()));
+            } else {
+                System.out.println("Downloading dependency %s to %s".formatted(dep.jarFileName(), libs));
+                Util.installUrl(dep.getDownloadURL(), libs.toString(), true);
+            }
+            installedJars.add(dep.jarFileName());
         });
+
+
+        currentJarsFiles.forEach(a -> {
+            if (!installedJars.contains(a.getName())) {
+                System.out.println("Deleting unused Library %s".formatted(a.getName()));
+                a.delete();
+            }
+        });
+
+
         System.out.println("Finished processing dependencies");
     }
 
