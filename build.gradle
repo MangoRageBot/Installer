@@ -2,7 +2,6 @@ buildscript {
     repositories {
         mavenLocal()
         mavenCentral()
-        jcenter()
         maven {
             url = uri("https://plugins.gradle.org/m2/")
         }
@@ -18,10 +17,27 @@ apply plugin: 'java'
 apply plugin: 'maven-publish'
 
 group = 'org.mangorage'
-version = '2.2.4'
+version = '3.0.' + getGitVersion()
+
+def getGitVersion() {
+    def result = "git rev-list HEAD --count".execute().text.trim()
+    if (result.empty) {
+        throw new RuntimeException("Failed to retrieve commit count")
+    } else {
+        def commitCount = result.toInteger()
+        // Use the commitCount variable further in your script
+        return commitCount;
+    }
+}
 
 repositories {
     mavenCentral()
+}
+
+java {
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+    }
 }
 
 dependencies {
@@ -54,9 +70,6 @@ publishing {
     publications.register("installer", MavenPublication) {
         artifact shadowJar
 
-        groupId = 'io.github.realmangorage'
-        artifactId = 'installer'
-
         pom {
             name = 'MangoBot Installer'
             description = 'The Installer for my Discord Bot Project'
@@ -76,13 +89,11 @@ publishing {
 
     repositories {
         maven {
-            def releasesRepoUrl = 'https://s01.oss.sonatype.org/content/repositories/releases/'
-            def snapshotsRepoUrl = 'https://s01.oss.sonatype.org/content/repositories/snapshots/'
-            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
-            group "io.github.mangorage"
+            url = "https://maven.minecraftforge.net/"
+
             credentials {
-                username = findProperty("mango.maven.username")
-                password = findProperty("mango.maven.password")
+                username = System.getenv("MAVEN_USERNAME")
+                password = System.getenv("MAVEN_PASSWORD")
             }
         }
     }
