@@ -6,12 +6,13 @@ import joptsimple.util.PathConverter;
 import org.mangorage.installer.core.Dependency;
 import org.mangorage.installer.core.Maven;
 import org.mangorage.installer.core.Util;
-import org.mangorage.installer.core.Version;
 
+import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileWriter;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
@@ -27,10 +28,11 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.jar.JarFile;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipInputStream;
 
 /**
  * Two Things
@@ -61,6 +63,8 @@ import java.util.jar.JarFile;
 public class Installer {
     private static final ExecutorService TASKS = Executors.newSingleThreadExecutor();
     private static final String DEPS_PATH = "installerdata/deps.txt";
+    public static final String SERVICE_PATH = "installerdata/services.launch";
+
     public static void main(String[] args) {
         System.out.println("Starting Installer...");
         System.out.println("Arguments Supplied: %s".formatted(List.of(args)));
@@ -68,9 +72,9 @@ public class Installer {
         OptionParser parser = new OptionParser();
 
         // Option Args
-        OptionSpec<String> launchArg = parser
-                .accepts("launch", "Wether or not to launch the program that will be installed/updated")
-                .withRequiredArg();
+        OptionSpec<Void> launchArg = parser
+                .accepts("launch", "Wether or not to launch the program that will be installed/updated");
+
         OptionSpec<Path> manualJar = parser
                 .accepts("manualJar", "Provide a path to the jar")
                 .withRequiredArg()
@@ -80,7 +84,6 @@ public class Installer {
         // Parsed args[]
         var options = parser.parse(args);
         var launch = options.has(launchArg);
-        var mainClass = options.valueOf(launchArg);
         List<File> jars;
 
         if (options.has(manualJar)) {
@@ -97,7 +100,7 @@ public class Installer {
         processDependencies(dependencies);
 
         // Launch Jar
-        if (launch) launchJar(jars, mainClass, args);
+        if (launch) launchJar(jars, args);
     }
 
     public static void checkInstalled() {
@@ -284,23 +287,44 @@ public class Installer {
         System.out.println("Finished processing dependencies");
     }
 
-    public static String findMainClass(String jarFile, List<File> files) {
+    public static String findMainClass(List<File> files) {
+        try {
+            for (File file : files) {
+                if (file.getName().endsWith(".jar")) {
+                    try (FileInputStream fis = new FileInputStream(file);
+                         ZipInputStream zis = new ZipInputStream(fis)) {
 
-        for (File file : files) {
-            if (file.getName().equals(jarFile)) {
-                try (var jf = new JarFile(file)) {
-                    return jf.getManifest().getMainAttributes().getValue("Main-Class");
-                } catch (IOException e) {
-                    throw new IllegalStateException(e);
+                        ZipEntry entry;
+                        while ((entry = zis.getNextEntry()) != null) {
+                            if (entry.getName().equals(SERVICE_PATH)) {
+                                System.out.println("Found " + SERVICE_PATH + " in " + file.getName());
+                                StringBuilder content = new StringBuilder();
+                                try (BufferedReader reader = new BufferedReader(new InputStreamReader(zis))) {
+                                    String line;
+                                    while ((line = reader.readLine()) != null) {
+                                        content.append(line).append("\n");
+                                    }
+                                }
+                                return content.toString(); // Return the contents as a String
+                            }
+                            zis.closeEntry();
+                        }
+                    }
                 }
             }
+        } catch (IOException e) {
+            throw new RuntimeException(e);
         }
 
         return "";
     }
 
-    public static void launchJar(List<File> jars, String jarFile,  String[] args) {
-        String mainClass = findMainClass(jarFile, jars);
+    public static void launchJar(List<File> jars,  String[] args) {
+        String mainClass = findMainClass(jars);
+        if (mainClass.isEmpty()) {
+            System.out.println("Could not find Valid Launch File from List of Jars...");
+            return;
+        }
 
         ClassLoader oldCl = Thread.currentThread().getContextClassLoader();
         URL[] urls = jars.stream().map(jar -> {
@@ -323,62 +347,5 @@ public class Installer {
             Thread.currentThread().setContextClassLoader(oldCl);
         }
     }
-    /*
-    Old code for reference
-        private static File downloadNewVersion(File jar, String version) {
-        try {
-            try (JarFile jarFile = new JarFile(jar)) {
-                var jarsToDownload = new ArrayList<>(Util.readLinesFromInputStream(jarFile.getInputStream(jarFile.getEntry(DEPS_PATH))));
-                var path = Path.of("libs/").toAbsolutePath();
-                if (Files.exists(path)) {
-                    var oldJars = new HashMap<String, Path>();
-                    var newJars = new HashMap<String, String>();
-
-                    jarsToDownload.forEach(a -> {
-                        newJars.put(getFileName(a), a);
-                    });
-
-                    Files.walk(path).forEach(a -> {
-                        if (a.toFile().isFile()) {
-                            oldJars.put(a.getFileName().toString(), a);
-                        }
-                    });
-
-                    oldJars.forEach((a, b) -> {
-                        if (!newJars.containsKey(a)) {
-                            try {
-                                System.out.println("Deleting unused jar %s".formatted(a));
-                                Files.delete(b);
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-                        }
-                    });
-
-
-                    newJars.forEach((a, b) -> {
-                        if (oldJars.containsKey(a)) {
-                            System.out.printf("Keeping Jar %s. Skipping Install%n", a);
-                            jarsToDownload.remove(b);
-                        }
-                    });
-
-                    jarsToDownload.forEach(a -> {
-                        Util.installUrl(a, "libs/", true);
-                    });
-
-                } else {
-                    jarsToDownload.forEach(a -> {
-                        Util.installUrl(a, "libs/", true);
-                    });
-                }
-                Util.saveVersion(version);
-                return jar;
-            }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
-        }
-    }
-     */
 
 }
