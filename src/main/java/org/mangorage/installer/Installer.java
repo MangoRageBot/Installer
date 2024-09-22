@@ -103,12 +103,6 @@ public class Installer {
         if (launch) launchJar(jars, args);
     }
 
-    public static void checkInstalled() {
-        // Handle checking the installed packages... to ensure they still exist, otherwise update...
-        // TODO: finish
-    }
-
-
     public static List<File> processPackages() {
         System.out.println("Processing installer/packages.txt");
         File file = new File("installer/packages.txt");
@@ -319,8 +313,8 @@ public class Installer {
         return "";
     }
 
-    public static void launchJar(List<File> jars,  String[] args) {
-        String mainClass = findMainClass(jars);
+    public static void launchJar(List<File> jars, String[] args) {
+        String mainClass = findMainClass(jars).strip();
         if (mainClass.isEmpty()) {
             System.out.println("Could not find Valid Launch File from List of Jars...");
             return;
