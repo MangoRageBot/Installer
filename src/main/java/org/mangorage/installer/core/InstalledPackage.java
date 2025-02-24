@@ -1,3 +1,3 @@
-package org.mangorage.installer.core.types;
+package org.mangorage.installer.core;
 
 public record InstalledPackage(String id, String version) {}

@@ -1,6 +1,4 @@
-package org.mangorage.installer.core.types;
-
-import org.mangorage.installer.core.Dependency;
+package org.mangorage.installer.core;
 
 import java.util.List;
 

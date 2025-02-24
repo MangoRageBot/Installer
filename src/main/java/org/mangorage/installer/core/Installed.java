@@ -1,6 +1,5 @@
-package org.mangorage.installer.core.types;
+package org.mangorage.installer.core;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public record Installed(List<InstalledPackage> installed) { }

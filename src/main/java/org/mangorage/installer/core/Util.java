@@ -29,17 +29,12 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.stream.Collectors;
 
 public class Util {
-    private static final String DATA_DIR = "installer/";
 
     public static File downloadTo(Maven maven, String version, String path) {
         String URL = "%s/%s/%s/%s/%s-%s.jar".formatted(
@@ -81,25 +76,6 @@ public class Util {
         return result;
     }
 
-    public static void deleteEverythingIfExists(Path path) {
-        if (Files.exists(path)) {
-            try {
-                Files.walk(path).forEach(a -> {
-                    if (a.toFile().isFile()) {
-                        try {
-                            Files.delete(a);
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-                    }
-                });
-                Files.deleteIfExists(path);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
-        }
-    }
-
     public static String parseLatestVersion(String metadata, String versionRange) {
         var versions = Version.parseMetadata(metadata);
         var latest = Version.getLatestVersion(versions, versionRange);
@@ -107,43 +83,6 @@ public class Util {
             return latest.getOriginal();
         }
         return "NO VERSION FOUND";
-    }
-
-    public static void saveVersion(String version) {
-        String data = """
-                {
-                  "version": "%s"
-                }
-                """.formatted(version);
-        writeToFile("installer/version.json", data);
-    }
-
-    public static void writeToFile(String filePath, String content) {
-        Path path = Paths.get(filePath);
-
-        try {
-            // Write the string to the file, creating it if it doesn't exist
-            Files.write(path, content.getBytes(StandardCharsets.UTF_8));
-            System.out.println("String successfully written to the file.");
-        } catch (IOException e) {
-            // Handle the exception if there is an error
-            e.printStackTrace();
-        }
-    }
-
-    public static List<String> readLinesFromInputStream(InputStream inputStream) {
-        List<String> lines = new ArrayList<>();
-
-        try (BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream))) {
-            String line;
-            while ((line = reader.readLine()) != null && !line.isEmpty()) {
-                lines.add(line);
-            }
-        } catch (IOException e) {
-            throw new IllegalStateException(e);
-        }
-
-        return lines;
     }
 
     public static void installUrl(String url, String destinationPath, boolean resolveName) {

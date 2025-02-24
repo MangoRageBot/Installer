@@ -1,1 +1,0 @@
-+;mangobot.jar;plugins/;https://maven.minecraftforge.net/;org.mangorage;mangobot

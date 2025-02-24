@@ -8,10 +8,10 @@ import joptsimple.util.PathConverter;
 import org.mangorage.installer.core.Dependency;
 import org.mangorage.installer.core.Maven;
 import org.mangorage.installer.core.Util;
-import org.mangorage.installer.core.types.Dependencies;
-import org.mangorage.installer.core.types.Installed;
-import org.mangorage.installer.core.types.InstalledPackage;
-import org.mangorage.installer.core.types.Packages;
+import org.mangorage.installer.core.Dependencies;
+import org.mangorage.installer.core.Installed;
+import org.mangorage.installer.core.InstalledPackage;
+import org.mangorage.installer.core.Packages;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -210,7 +210,6 @@ public class Installer {
         jars.forEach(jar -> {
             System.out.println("Processing Jar %s".formatted(jar.getName()));
             try (var jf = new JarFile(jar)) {
-
                 var file = new InputStreamReader(jf.getInputStream(jf.getEntry(DEPS_PATH)));
                 var dependencies = GSON.fromJson(file, Dependencies.class);
                 dependencies.dependencies().forEach(dependency -> {
@@ -226,10 +225,6 @@ public class Installer {
     }
 
     public static void processDependencies(List<Dependency> dependencies) {
-        // TODO: Update to allow for checking old vs new Deps if we need to actually install them!
-        // TODO: Due to them possibly already existing...
-        // TODO: Remove Unused Jars
-
         System.out.println("Processing dependencies for jars");
         var libs = Path.of("libraries/").toAbsolutePath();
 
