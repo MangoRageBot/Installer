@@ -1,0 +1,12 @@
+{
+  "destination": "plugins/",
+  "packages": [
+    {
+      "url": "https://maven.minecraftforge.net/",
+      "group": "org.mangorage",
+      "artifact": "mangobot",
+      "version": "+",
+      "target": "mangobot.jar"
+    }
+  ]
+}

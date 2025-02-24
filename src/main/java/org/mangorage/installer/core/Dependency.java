@@ -22,7 +22,7 @@
 
 package org.mangorage.installer.core;
 
-public record Dependency(String repository, String groupId, String artifactId, String version, String jarFileName) {
+public record Dependency(String url, String group, String artifact, String version, String target) {
     public static String fix(String value) {
         if (value.endsWith("/")) {
             return value.substring(0, value.length() - 1);
@@ -35,6 +35,6 @@ public record Dependency(String repository, String groupId, String artifactId, S
     }
 
     public String getDownloadURL() {
-        return "%s/%s/%s/%s/%s".formatted(fix(repository), fixDot(groupId), artifactId, version, jarFileName);
+        return "%s/%s/%s/%s/%s".formatted(fix(url), fixDot(group), artifact, version, target);
     }
 }

@@ -1,0 +1,11 @@
+{
+  "dependencies": [
+    {
+      "url": "https://repo.maven.apache.org/maven2/",
+      "group":"org.luaj",
+      "artifact": "luaj-jse",
+      "version": "3.0.1",
+      "target": "luaj-jse-3.0.1.jar"
+    }
+  ]
+}

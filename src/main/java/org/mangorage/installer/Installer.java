@@ -1,16 +1,22 @@
 package org.mangorage.installer;
 
 import com.google.gson.Gson;
+import com.google.gson.stream.JsonReader;
 import joptsimple.OptionParser;
 import joptsimple.OptionSpec;
 import joptsimple.util.PathConverter;
 import org.mangorage.installer.core.Dependency;
 import org.mangorage.installer.core.Maven;
 import org.mangorage.installer.core.Util;
+import org.mangorage.installer.core.types.Dependencies;
+import org.mangorage.installer.core.types.Installed;
+import org.mangorage.installer.core.types.InstalledPackage;
+import org.mangorage.installer.core.types.Packages;
 
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FileReader;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStreamReader;
@@ -64,8 +70,8 @@ import java.util.zip.ZipInputStream;
 public class Installer {
     private static final Gson GSON = new Gson();
     private static final ExecutorService TASKS = Executors.newSingleThreadExecutor();
-    private static final String DEPS_PATH = "installerdata/deps.txt";
-    public static final String SERVICE_PATH = "installerdata/services.launch";
+    private static final String DEPS_PATH = "installer-data/dependencies.json";
+    public static final String SERVICE_PATH = "installer-data/services.launch";
 
     public static void main(String[] args) {
         System.out.println("Starting Installer...");
@@ -75,7 +81,7 @@ public class Installer {
 
         // Option Args
         OptionSpec<Void> launchArg = parser
-                .accepts("launch", "Wether or not to launch the program that will be installed/updated");
+                .accepts("launch", "Whether or not to launch the program that will be installed/updated");
 
         OptionSpec<Path> manualJar = parser
                 .accepts("manualJar", "Provide a path to the jar")
@@ -106,24 +112,21 @@ public class Installer {
     }
 
     public static List<File> processPackages() {
-        System.out.println("Processing installer/packages.txt");
-        File file = new File("installer/packages.txt");
+        System.out.println("Processing installer/packages.json");
+        File file = new File("installer/packages.json");
         if (!file.exists())
-            throw new IllegalStateException("installer/packages.txt not found!");
+            throw new IllegalStateException("installer/packages.json not found!");
 
         HashMap<String, String> versions = new HashMap<>();
         HashMap<String, String> newVersions = new HashMap<>();
 
-        File installed = new File("installer/installed.txt");
+        File installed = new File("installer/installed.json");
         if (installed.exists()) {
             // Handle
-            try (var is = new FileInputStream(installed)) {
-                var list = Util.readLinesFromInputStream(is);
-                list.forEach(l -> {
-                    String[] versionInfo = l.split("=");
-                    if (versionInfo.length == 2) {
-                        versions.put(versionInfo[0], versionInfo[1]);
-                    }
+            try (var is = new FileReader(file)) {
+                var list = GSON.fromJson(is, Installed.class).installed();
+                list.forEach(installedPackage -> {
+                    versions.put(installedPackage.id(), installedPackage.version());
                 });
                 installed.delete();
             } catch (IOException e) {
@@ -134,53 +137,45 @@ public class Installer {
 
         ArrayList<File> results = new ArrayList<>();
 
-        try (var is = new FileInputStream(file)) {
-            Util.readLinesFromInputStream(is).forEach(line -> {
-                String[] data = line.split(";");
-                if (data.length == 6) {
-                    // 1.0.+;mangobot.jar;plugins/;https://s01.oss.sonatype.org/content/repositories/releases;io.github.realmangorage;mangobot
-                    String versionRange = data[0];
-                    String jarName = data[1];
-                    String jarDest = data[2];
-                    String repo = data[3];
-                    String groupID = data[4];
-                    String artifact = data[5];
+        try (var is = new FileReader(file)) {
 
-                    Maven maven = new Maven(
-                            repo,
-                            groupID,
-                            artifact
-                    );
+            var packages = GSON.fromJson(is, Packages.class);
 
-                    Future<String> metadataFuture = TASKS.submit(() -> Util.downloadMetadata(maven));
-                    String metadata = null;
-                    Path path = Path.of("%s/%s".formatted(jarDest, jarName));
-                    try {
-                        metadata = metadataFuture.get(10, TimeUnit.SECONDS);
-                    } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                        System.out.println("Failed to get metadata file. Attempting to move onto next item...");
+            packages.packages().forEach(dependency -> {
+                Maven maven = new Maven(
+                        dependency.url(),
+                        dependency.group(),
+                        dependency.artifact()
+                );
+
+                Future<String> metadataFuture = TASKS.submit(() -> Util.downloadMetadata(maven));
+                String metadata = null;
+                Path path = Path.of("%s/%s".formatted(packages.destination(), dependency.target()));
+                try {
+                    metadata = metadataFuture.get(10, TimeUnit.SECONDS);
+                } catch (InterruptedException | ExecutionException | TimeoutException e) {
+                    System.out.println("Failed to get metadata file. Attempting to move onto next item...");
+                    File jar = path.toAbsolutePath().toFile();
+                    results.add(jar);
+                } finally {
+                    String latestVersion = Util.parseLatestVersion(metadata, dependency.version());
+
+                    newVersions.put(dependency.target(), latestVersion);
+                    if (latestVersion.equals(versions.get(dependency.target()))) {
                         File jar = path.toAbsolutePath().toFile();
                         results.add(jar);
-                    } finally {
-                        String latestVersion = Util.parseLatestVersion(metadata, versionRange);
-
-                        newVersions.put(jarName, latestVersion);
-                        if (latestVersion.equals(versions.get(jarName))) {
-                            File jar = path.toAbsolutePath().toFile();
-                            results.add(jar);
-                            System.out.println("Found no updates for %s".formatted(jarName));
-                        } else {
-                            System.out.println("Found updates for %s and installing libraries".formatted(jarName));
-                            File dest = new File(jarDest);
-                            try {
-                                Files.createDirectories(dest.toPath());
-                            } catch (IOException e) {
-                                throw new RuntimeException(e);
-                            }
-
-                            File jar = Util.downloadTo(maven, latestVersion, "%s/%s".formatted(dest.getAbsolutePath(), jarName));
-                            results.add(jar);
+                        System.out.println("Found no updates for %s".formatted(dependency.target()));
+                    } else {
+                        System.out.println("Found updates for %s and installing libraries".formatted(dependency.target()));
+                        File dest = new File(packages.destination());
+                        try {
+                            Files.createDirectories(dest.toPath());
+                        } catch (IOException e) {
+                            throw new RuntimeException(e);
                         }
+
+                        File jar = Util.downloadTo(maven, latestVersion, "%s/%s".formatted(dest.getAbsolutePath(), dependency.target()));
+                        results.add(jar);
                     }
                 }
             });
@@ -210,23 +205,12 @@ public class Installer {
         jars.forEach(jar -> {
             System.out.println("Processing Jar %s".formatted(jar.getName()));
             try (var jf = new JarFile(jar)) {
-                var jarsToDownload = new ArrayList<>(Util.readLinesFromInputStream(jf.getInputStream(jf.getEntry(DEPS_PATH))));
-                // Handle jarsToDownload
-                jarsToDownload.forEach(dep -> {
-                    var depData = dep.split(" ");
-                    // String repository, String groupId, String artifactId, String version, String jarFileName
-                    if (depData.length == 5) {
-                        Dependency dependency = new Dependency(
-                                depData[0],
-                                depData[1],
-                                depData[2],
-                                depData[3],
-                                depData[4]
-                        );
 
-                        System.out.println("Found dependency %s version %s".formatted(dependency.artifactId(), dependency.version()));
-                        deps.add(dependency);
-                    }
+                var file = new InputStreamReader(jf.getInputStream(jf.getEntry(DEPS_PATH)));
+                var dependencies = GSON.fromJson(file, Dependencies.class);
+                dependencies.dependencies().forEach(dependency -> {
+                    System.out.println("Found dependency %s version %s".formatted(dependency.artifact(), dependency.version()));
+                    deps.add(dependency);
                 });
             } catch (IOException e) {
                 throw new IllegalStateException(e);
@@ -262,13 +246,13 @@ public class Installer {
         }
 
         dependencies.forEach(dep -> {
-            if (currentJars.contains(dep.jarFileName())) {
-                System.out.println("Skipping Dependency Install %s, already Exists!".formatted(dep.jarFileName()));
+            if (currentJars.contains(dep.target())) {
+                System.out.println("Skipping Dependency Install %s, already Exists!".formatted(dep.target()));
             } else {
-                System.out.println("Downloading dependency %s to %s".formatted(dep.jarFileName(), libs));
+                System.out.println("Downloading dependency %s to %s".formatted(dep.target(), libs));
                 Util.installUrl(dep.getDownloadURL(), libs.toString(), true);
             }
-            installedJars.add(dep.jarFileName());
+            installedJars.add(dep.target());
         });
 
 
