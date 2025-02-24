@@ -1,7 +1,7 @@
 package org.mangorage.installer;
 
 import com.google.gson.Gson;
-import com.google.gson.stream.JsonReader;
+import com.google.gson.GsonBuilder;
 import joptsimple.OptionParser;
 import joptsimple.OptionSpec;
 import joptsimple.util.PathConverter;
@@ -68,7 +68,7 @@ import java.util.zip.ZipInputStream;
  *
  */
 public class Installer {
-    private static final Gson GSON = new Gson();
+    private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final ExecutorService TASKS = Executors.newSingleThreadExecutor();
     private static final String DEPS_PATH = "installer-data/dependencies.json";
     public static final String SERVICE_PATH = "installer-data/services.launch";
@@ -101,7 +101,7 @@ public class Installer {
         }
 
         if (jars.isEmpty()) {
-            throw new IllegalStateException("packages.txt was blank!");
+            throw new IllegalStateException("packages.json was blank!");
         }
 
         var dependencies = processJars(jars);
@@ -123,12 +123,12 @@ public class Installer {
         File installed = new File("installer/installed.json");
         if (installed.exists()) {
             // Handle
-            try (var is = new FileReader(file)) {
-                var list = GSON.fromJson(is, Installed.class).installed();
-                list.forEach(installedPackage -> {
+            System.out.println(installed.toPath().toAbsolutePath());
+            try (var is = new FileReader(installed)) {
+                var list = GSON.fromJson(is, Installed.class);
+                list.installed().forEach(installedPackage -> {
                     versions.put(installedPackage.id(), installedPackage.version());
                 });
-                installed.delete();
             } catch (IOException e) {
                 throw new RuntimeException(e);
             }
@@ -180,14 +180,19 @@ public class Installer {
                 }
             });
 
+            ArrayList<InstalledPackage> installedList = new ArrayList<>(
+                    newVersions
+                        .entrySet()
+                        .stream()
+                        .map(entry -> new InstalledPackage(entry.getKey(), entry.getValue()))
+                        .toList()
+            );
+
+
             try (var fileIS = new FileWriter(installed)) {
-                newVersions.forEach((name, version) -> {
-                    try {
-                        fileIS.append("%s=%s".formatted(name, version)).append("\n");
-                    } catch (IOException e) {
-                        throw new RuntimeException(e);
-                    }
-                });
+                fileIS.write(
+                        GSON.toJson(new Installed(installedList))
+                );
             } catch (IOException e) {
                 throw new IllegalStateException(e);
             }
@@ -226,7 +231,7 @@ public class Installer {
         // TODO: Remove Unused Jars
 
         System.out.println("Processing dependencies for jars");
-        var libs = Path.of("libs/").toAbsolutePath();
+        var libs = Path.of("libraries/").toAbsolutePath();
 
         ArrayList<File> currentJarsFiles = new ArrayList<>();
         ArrayList<String> currentJars = new ArrayList<>();
