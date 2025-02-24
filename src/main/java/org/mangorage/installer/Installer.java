@@ -1,5 +1,6 @@
 package org.mangorage.installer;
 
+import com.google.gson.Gson;
 import joptsimple.OptionParser;
 import joptsimple.OptionSpec;
 import joptsimple.util.PathConverter;
@@ -61,6 +62,7 @@ import java.util.zip.ZipInputStream;
  *
  */
 public class Installer {
+    private static final Gson GSON = new Gson();
     private static final ExecutorService TASKS = Executors.newSingleThreadExecutor();
     private static final String DEPS_PATH = "installerdata/deps.txt";
     public static final String SERVICE_PATH = "installerdata/services.launch";
