@@ -20,7 +20,7 @@
  * OR OTHER DEALINGS IN THE SOFTWARE.
  */
 
-package org.mangorage.installer.core;
+package org.mangorage.installer.core.data;
 
 import java.io.BufferedReader;
 import java.io.File;

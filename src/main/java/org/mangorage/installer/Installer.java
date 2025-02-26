@@ -3,83 +3,37 @@ package org.mangorage.installer;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import joptsimple.OptionParser;
+import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.PathConverter;
-import org.mangorage.installer.core.Dependency;
-import org.mangorage.installer.core.Maven;
-import org.mangorage.installer.core.Util;
-import org.mangorage.installer.core.Dependencies;
-import org.mangorage.installer.core.Installed;
-import org.mangorage.installer.core.InstalledPackage;
-import org.mangorage.installer.core.Packages;
-
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileReader;
-import java.io.FileWriter;
-import java.io.IOException;
-import java.io.InputStreamReader;
-import java.lang.reflect.InvocationTargetException;
+import org.mangorage.installer.core.data.*;
+import java.io.*;
 import java.lang.reflect.Method;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.HashMap;
-import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.jar.JarFile;
+import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
-/**
- * Two Things
- *
- * Main:
- *   - Install all plugins/addons
- *   - Go thru their dependencies and get them all into a list
- *   - Filter thru Dependencies to prevent duplicate dependencys
- *   - Install the Dependencies
- *
- *  ManualJar
- *   - Skip the Installing process, they already exist
- *   - Go thru their dependencies and get them all into a list
- *   - Filter thru Dependencies to prevent duplicate dependencys
- *   - Install the Dependencies
- *
- *
- *
- *   Plugin/Addon format (plugins.txt)
- *    - Repo
- *    - GroupID
- *    - Artifact
- *    - fileName
- *    We fetch the latest always
- *
- *
- */
 public class Installer {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final ExecutorService TASKS = Executors.newSingleThreadExecutor();
-    private static final String DEPS_PATH = "installer-data/dependencies.json";
-    public static final String SERVICE_PATH = "installer-data/services.launch";
+
+    private static final String DEPENDENCIES_PATH = "installer-data/dependencies.json";
+    private static final String SERVICE_PATH = "installer-data/services.launch";
+    private static final Path LIBRARIES_PATH = Path.of("libraries/").toAbsolutePath();
 
     public static void main(String[] args) {
         System.out.println("Starting Installer...");
-        System.out.println("Arguments Supplied: %s".formatted(List.of(args)));
-        // Parser
+        System.out.println("Arguments Supplied: " + Arrays.toString(args));
+
         OptionParser parser = new OptionParser();
 
-        // Option Args
         OptionSpec<Void> launchArg = parser
                 .accepts("launch", "Whether or not to launch the program that will be installed/updated");
 
@@ -89,242 +43,203 @@ public class Installer {
                 .withValuesSeparatedBy(";")
                 .withValuesConvertedBy(new PathConverter());
 
-        // Parsed args[]
         var options = parser.parse(args);
-        var launch = options.has(launchArg);
-        List<File> jars;
 
-        if (options.has(manualJar)) {
-            jars = options.valuesOf(manualJar).stream().map(Path::toFile).toList();
-        } else {
-            jars = processPackages();
-        }
+        List<File> jars = options.has("manualJar") ? getManualJars(options, manualJar) : processPackages();
 
         if (jars.isEmpty()) {
-            throw new IllegalStateException("packages.json was blank!");
+            throw new IllegalStateException("No JARs found to process!");
         }
 
-        var dependencies = processJars(jars);
-        processDependencies(dependencies);
+        List<Dependency> dependencies = extractDependencies(jars);
+        handleDependencies(dependencies);
 
-        // Launch Jar
-        if (launch) launchJar(jars, args);
+        if (options.has("launch")) {
+            System.out.println("Finished running installer...");
+            launchJar(jars, args);
+        } else {
+            System.out.println("Finished running installer...");
+            System.exit(0);
+        }
     }
 
-    public static List<File> processPackages() {
+    private static List<File> getManualJars(OptionSet options, OptionSpec<Path> manualJarSpec) {
+        return manualJarSpec.values(options)
+                .stream()
+                .map(Path::toFile)
+                .toList();
+    }
+
+    private static List<File> processPackages() {
         System.out.println("Processing installer/packages.json");
         File file = new File("installer/packages.json");
-        if (!file.exists())
-            throw new IllegalStateException("installer/packages.json not found!");
+        if (!file.exists()) throw new IllegalStateException("packages.json not found!");
 
-        HashMap<String, String> versions = new HashMap<>();
-        HashMap<String, String> newVersions = new HashMap<>();
+        Map<String, String> installedVersions = readInstalledVersions();
+        List<File> results = new ArrayList<>();
 
-        File installed = new File("installer/installed.json");
-        if (installed.exists()) {
-            // Handle
-            System.out.println(installed.toPath().toAbsolutePath());
-            try (var is = new FileReader(installed)) {
-                var list = GSON.fromJson(is, Installed.class);
-                list.installed().forEach(installedPackage -> {
-                    versions.put(installedPackage.id(), installedPackage.version());
-                });
-            } catch (IOException e) {
-                throw new RuntimeException(e);
+        try (var reader = new FileReader(file)) {
+            Packages packages = GSON.fromJson(reader, Packages.class);
+            Map<String, String> newVersions = new HashMap<>();
+
+            for (Dependency dependency : packages.packages()) {
+                File jar = handleDependency(dependency, installedVersions, newVersions, packages.destination());
+                if (jar != null) results.add(jar);
             }
-        }
 
-
-        ArrayList<File> results = new ArrayList<>();
-
-        try (var is = new FileReader(file)) {
-
-            var packages = GSON.fromJson(is, Packages.class);
-
-            packages.packages().forEach(dependency -> {
-                Maven maven = new Maven(
-                        dependency.url(),
-                        dependency.group(),
-                        dependency.artifact()
-                );
-
-                Future<String> metadataFuture = TASKS.submit(() -> Util.downloadMetadata(maven));
-                String metadata = null;
-                Path path = Path.of("%s/%s".formatted(packages.destination(), dependency.target()));
-                try {
-                    metadata = metadataFuture.get(10, TimeUnit.SECONDS);
-                } catch (InterruptedException | ExecutionException | TimeoutException e) {
-                    System.out.println("Failed to get metadata file. Attempting to move onto next item...");
-                    File jar = path.toAbsolutePath().toFile();
-                    results.add(jar);
-                } finally {
-                    String latestVersion = Util.parseLatestVersion(metadata, dependency.version());
-
-                    newVersions.put(dependency.target(), latestVersion);
-                    if (latestVersion.equals(versions.get(dependency.target()))) {
-                        File jar = path.toAbsolutePath().toFile();
-                        results.add(jar);
-                        System.out.println("Found no updates for %s".formatted(dependency.target()));
-                    } else {
-                        System.out.println("Found updates for %s and installing libraries".formatted(dependency.target()));
-                        File dest = new File(packages.destination());
-                        try {
-                            Files.createDirectories(dest.toPath());
-                        } catch (IOException e) {
-                            throw new RuntimeException(e);
-                        }
-
-                        File jar = Util.downloadTo(maven, latestVersion, "%s/%s".formatted(dest.getAbsolutePath(), dependency.target()));
-                        results.add(jar);
-                    }
-                }
-            });
-
-            ArrayList<InstalledPackage> installedList = new ArrayList<>(
-                    newVersions
-                        .entrySet()
-                        .stream()
-                        .map(entry -> new InstalledPackage(entry.getKey(), entry.getValue()))
-                        .toList()
-            );
-
-
-            try (var fileIS = new FileWriter(installed)) {
-                fileIS.write(
-                        GSON.toJson(new Installed(installedList))
-                );
-            } catch (IOException e) {
-                throw new IllegalStateException(e);
-            }
+            updateInstalledVersions(newVersions);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new RuntimeException("Error processing packages.json", e);
         }
 
         return results;
     }
 
-    public static List<Dependency> processJars(List<File> jars) {
-        System.out.println("Processing Jars");
-        ArrayList<Dependency> deps = new ArrayList<>();
+    private static Map<String, String> readInstalledVersions() {
+        File installedFile = new File("installer/installed.json");
+        if (!installedFile.exists()) return new HashMap<>();
 
-        jars.forEach(jar -> {
-            System.out.println("Processing Jar %s".formatted(jar.getName()));
-            try (var jf = new JarFile(jar)) {
-                var file = new InputStreamReader(jf.getInputStream(jf.getEntry(DEPS_PATH)));
-                var dependencies = GSON.fromJson(file, Dependencies.class);
-                dependencies.dependencies().forEach(dependency -> {
-                    System.out.println("Found dependency %s version %s".formatted(dependency.artifact(), dependency.version()));
-                    deps.add(dependency);
-                });
-            } catch (IOException e) {
-                throw new IllegalStateException(e);
-            }
-        });
-
-        return deps;
+        try (var reader = new FileReader(installedFile)) {
+            return GSON.fromJson(reader, Installed.class).installed()
+                    .stream().collect(Collectors.toMap(InstalledPackage::id, InstalledPackage::version));
+        } catch (IOException e) {
+            throw new RuntimeException("Error reading installed.json", e);
+        }
     }
 
-    public static void processDependencies(List<Dependency> dependencies) {
-        System.out.println("Processing dependencies for jars");
-        var libs = Path.of("libraries/").toAbsolutePath();
+    private static void updateInstalledVersions(Map<String, String> newVersions) {
+        try (var writer = new FileWriter("installer/installed.json")) {
+            GSON.toJson(new Installed(newVersions.entrySet()
+                    .stream().map(e -> new InstalledPackage(e.getKey(), e.getValue())).toList()), writer);
+        } catch (IOException e) {
+            throw new RuntimeException("Error updating installed.json", e);
+        }
+    }
 
-        ArrayList<File> currentJarsFiles = new ArrayList<>();
-        ArrayList<String> currentJars = new ArrayList<>();
-        ArrayList<String> installedJars = new ArrayList<>();
+    private static File handleDependency(Dependency dependency, Map<String, String> installedVersions, Map<String, String> newVersions, String destination) {
+        Maven maven = new Maven(dependency.url(), dependency.group(), dependency.artifact());
+        String latestVersion = fetchLatestVersion(maven, dependency.version());
+        newVersions.put(dependency.target(), latestVersion);
 
-        var libsFolder = libs.toFile();
-        if (libsFolder.exists() && libsFolder.isDirectory()) {
-            var files = libsFolder.listFiles();
-            if (files != null) {
-                currentJarsFiles.addAll(
-                        Arrays.stream(files)
-                                .filter(file -> file.getName().endsWith(".jar"))
-                                .toList()
-                );
-                currentJars.addAll(currentJarsFiles.stream().map(File::getName).toList());
+        if (latestVersion.equals(installedVersions.get(dependency.target()))) {
+            return new File(destination, dependency.target());
+        }
+
+        System.out.println("Installing/updating " + dependency.target());
+        return Util.downloadTo(maven, latestVersion, destination + "/" + dependency.target());
+    }
+
+    private static String fetchLatestVersion(Maven maven, String defaultVersion) {
+        Future<String> future = TASKS.submit(() -> Util.downloadMetadata(maven));
+        try {
+            return Util.parseLatestVersion(future.get(10, TimeUnit.SECONDS), defaultVersion);
+        } catch (Exception e) {
+            System.out.println("Failed to get metadata, using default version: " + defaultVersion);
+            return defaultVersion;
+        }
+    }
+
+    private static List<Dependency> extractDependencies(List<File> jars) {
+        System.out.println("Extracting dependencies from JARs");
+        List<Dependency> dependencies = new ArrayList<>();
+
+        for (File jar : jars) {
+            try (var jarFile = new JarFile(jar)) {
+                ZipEntry entry = jarFile.getEntry(DEPENDENCIES_PATH);
+                if (entry != null) {
+                    try (var reader = new InputStreamReader(jarFile.getInputStream(entry))) {
+                        List<Dependency> extracted = GSON.fromJson(reader, Dependencies.class).dependencies();
+                        dependencies.addAll(extracted);
+                        extracted.forEach(dep -> System.out.println("Found dependency: " + dep));
+                    }
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Error processing jar: " + jar.getName(), e);
+            }
+        }
+        return dependencies;
+    }
+
+    private static void handleDependencies(List<Dependency> dependencies) {
+        System.out.println("Handling dependencies...");
+        System.out.println("Skipping dependencies already present...");
+        Set<String> installedJars = new HashSet<>();
+        List<File> existingJars = getExistingLibraryJars();
+
+        for (Dependency dep : dependencies) {
+            installedJars.add(dep.target());
+            if (!existingJars.contains(new File(LIBRARIES_PATH.toString(), dep.target()))) {
+                Util.installUrl(dep.getDownloadURL(), LIBRARIES_PATH.toString(), true);
+            } else {
+                System.out.println("Skipped -> " + dep.target());
             }
         }
 
-        dependencies.forEach(dep -> {
-            if (currentJars.contains(dep.target())) {
-                System.out.println("Skipping Dependency Install %s, already Exists!".formatted(dep.target()));
-            } else {
-                System.out.println("Downloading dependency %s to %s".formatted(dep.target(), libs));
-                Util.installUrl(dep.getDownloadURL(), libs.toString(), true);
-            }
-            installedJars.add(dep.target());
-        });
+        deleteUnusedDependencies(existingJars, installedJars);
+    }
 
+    private static List<File> getExistingLibraryJars() {
+        return Optional.ofNullable(LIBRARIES_PATH.toFile().listFiles(file -> file.getName().endsWith(".jar")))
+                .map(Arrays::asList).orElse(List.of());
+    }
 
-        currentJarsFiles.forEach(a -> {
-            if (!installedJars.contains(a.getName())) {
-                System.out.println("Deleting unused Library %s".formatted(a.getName()));
-                a.delete();
+    private static void deleteUnusedDependencies(List<File> existingJars, Set<String> installedJars) {
+        existingJars.forEach(file -> {
+            if (!installedJars.contains(file.getName())) {
+                System.out.println("Deleting unused dependency: " + file.getName());
+                file.delete();
             }
         });
-
-
-        System.out.println("Finished processing dependencies");
     }
 
     public static String findMainClass(List<File> files) {
-        try {
-            for (File file : files) {
-                if (file.getName().endsWith(".jar")) {
-                    try (FileInputStream fis = new FileInputStream(file);
-                         ZipInputStream zis = new ZipInputStream(fis)) {
+        for (File file : files) {
+            if (!file.getName().endsWith(".jar")) continue;
 
-                        ZipEntry entry;
-                        while ((entry = zis.getNextEntry()) != null) {
-                            if (entry.getName().equals(SERVICE_PATH)) {
-                                System.out.println("Found " + SERVICE_PATH + " in " + file.getName());
-                                StringBuilder content = new StringBuilder();
-                                try (BufferedReader reader = new BufferedReader(new InputStreamReader(zis))) {
-                                    String line;
-                                    while ((line = reader.readLine()) != null) {
-                                        content.append(line).append("\n");
-                                    }
-                                }
-                                return content.toString(); // Return the contents as a String
-                            }
-                            zis.closeEntry();
-                        }
+            try (ZipInputStream zis = new ZipInputStream(new FileInputStream(file));
+                 BufferedReader reader = new BufferedReader(new InputStreamReader(zis))) {
+                ZipEntry entry;
+                while ((entry = zis.getNextEntry()) != null) {
+                    if (SERVICE_PATH.equals(entry.getName())) {
+                        System.out.println("Found " + SERVICE_PATH + " in " + file.getName());
+                        return reader.lines().collect(Collectors.joining("\n"));
                     }
                 }
+            } catch (IOException e) {
+                throw new RuntimeException("Error processing JAR file: " + file.getName(), e);
             }
-        } catch (IOException e) {
-            throw new RuntimeException(e);
         }
-
         return "";
     }
 
     public static void launchJar(List<File> jars, String[] args) {
+        System.out.println("Attempting to launch....");
         String mainClass = findMainClass(jars).strip();
         if (mainClass.isEmpty()) {
             System.out.println("Could not find Valid Launch File from List of Jars...");
             return;
         }
 
-        ClassLoader oldCl = Thread.currentThread().getContextClassLoader();
-        URL[] urls = jars.stream().map(jar -> {
-            try {
-                return jar.toURI().toURL();
-            } catch (MalformedURLException e) {
-                throw new RuntimeException(e);
-            }
-        }).toList().toArray(new URL[jars.size()]);
-        try (var cl = new URLClassLoader(urls, Installer.class.getClassLoader())) {
+        URL[] urls = jars.stream()
+                .map(File::toURI)
+                .map(uri -> {
+                    try {
+                        return uri.toURL();
+                    } catch (MalformedURLException e) {
+                        throw new RuntimeException("Invalid JAR file URL: " + uri, e);
+                    }
+                })
+                .toArray(URL[]::new);
+
+        try (URLClassLoader cl = new URLClassLoader(urls, Thread.currentThread().getContextClassLoader())) {
             Thread.currentThread().setContextClassLoader(cl);
-            Class<?> clazz = Class.forName(mainClass, false, cl);
+            Class<?> clazz = Class.forName(mainClass, true, cl);
             Method method = clazz.getDeclaredMethod("main", String[].class);
-            method.invoke(null, (Object) args); // Pass through the args...
-        } catch (IOException | ClassNotFoundException e) {
-            throw new IllegalStateException(e);
-        } catch (InvocationTargetException | NoSuchMethodException | IllegalAccessException e) {
-            throw new RuntimeException(e);
+            method.invoke(null, (Object) args);
+        } catch (IOException | ReflectiveOperationException e) {
+            throw new RuntimeException("Failed to launch the application", e);
         } finally {
-            Thread.currentThread().setContextClassLoader(oldCl);
+            Thread.currentThread().setContextClassLoader(ClassLoader.getSystemClassLoader());
         }
     }
 

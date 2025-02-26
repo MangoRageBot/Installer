@@ -1,4 +1,4 @@
-package org.mangorage.installer.core;
+package org.mangorage.installer.core.data;
 
 import java.util.ArrayList;
 import java.util.List;

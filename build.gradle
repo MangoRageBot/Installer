@@ -35,7 +35,7 @@ def getLatestGitVersion() {
         throw new RuntimeException("Failed to retrieve commit count")
     } else {
         def commitCount = result.split("-")[1].toInteger()
-        return commitCount;
+        return commitCount
     }
 }
 
