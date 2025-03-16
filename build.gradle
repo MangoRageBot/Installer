@@ -104,7 +104,7 @@ publishing {
             url = "https://maven.minecraftforge.net/"
 
             credentials {
-                username = System.getenv("MAVEN_USERNAME")
+                username = System.getenv("MAVEN_USER")
                 password = System.getenv("MAVEN_PASSWORD")
             }
         }
