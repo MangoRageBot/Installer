@@ -16,6 +16,7 @@ jobs:
       java: 22
       gradle_tasks: :publish
       artifact_name: "Installer"
+      author_icon_url: "https://avatars.githubusercontent.com/u/147930550"
     secrets:
       DISCORD_WEBHOOK: ${{ secrets.DISCORD_WEBHOOK }}
       MAVEN_USER: ${{ secrets.USERNAME }}  # Reference the secret
