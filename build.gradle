@@ -12,12 +12,23 @@ buildscript {
     }
 }
 
+plugins {
+    id 'org.gradlex.extra-java-module-info' version '1.12'
+}
+
+
 apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'java'
 apply plugin: 'maven-publish'
 
 group = 'org.mangorage'
 version = getLatestGitTag() + "." + getLatestGitVersion()
+
+println("Version: " + version)
+
+extraJavaModuleInfo {
+    setDeriveAutomaticModuleNamesFromFileNames(true)
+}
 
 def getLatestGitTag() {
     def result = "git describe --long --tags".execute().text.trim()
