@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
-public class Version implements Comparable<Version> {
+public final class Version implements Comparable<Version> {
 
     public static List<Version> parseMetadata(String metadata) {
         return Version.parseVersions(metadata).stream().map(a -> {

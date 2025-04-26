@@ -34,7 +34,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.stream.Collectors;
 
-public class Util {
+public final class Util {
 
     public static File downloadTo(Maven maven, String version, String path) {
         String URL = "%s/%s/%s/%s/%s-%s.jar".formatted(
@@ -54,9 +54,24 @@ public class Util {
         return new File(path);
     }
 
+    public static String getLastUpdated(String xmlContent) {
+        String tag = "<lastUpdated>";
+        String endTag = "</lastUpdated>";
+
+        int start = xmlContent.indexOf(tag);
+        int end = xmlContent.indexOf(endTag);
+
+        if (start == -1 || end == -1 || start > end) {
+            throw new IllegalStateException("Can't find your precious <lastUpdated> tag, genius.");
+        }
+
+        start += tag.length();
+        return xmlContent.substring(start, end).trim();
+    }
+
     public static String downloadMetadata(Maven maven) {
         String url = maven.repository() + "/" + maven.groupId().replace(".", "/") + "/" + maven.artifactId() + "/maven-metadata.xml";
-        System.out.println("Downloading Metadata from %s".formatted(url));
+        org.mangorage.installer.core.LogUtil.println("Downloading Metadata from %s".formatted(url));
         try {
             return convertInputStreamToString(new URL(url).openStream());
         } catch (IOException e) {
@@ -102,13 +117,13 @@ public class Util {
                 if (!Files.exists(destination.getParent())) Files.createDirectories(destination.getParent());
                 Files.copy(inputStream, destination, StandardCopyOption.REPLACE_EXISTING);
 
-                System.out.println("Installation complete. File saved to: " + destination);
+                org.mangorage.installer.core.LogUtil.println("[INSTALLER] Installation complete. File saved to: " + destination);
             } catch (URISyntaxException e) {
                 throw new RuntimeException(e);
             }
 
         } catch (IOException e) {
-            System.out.println(url);
+            org.mangorage.installer.core.LogUtil.println(url);
             throw new IllegalStateException(e);
         }
     }

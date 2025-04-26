@@ -22,7 +22,14 @@
 
 package org.mangorage.installer.core.data;
 
-public record Dependency(String url, String group, String artifact, String version, String target) {
+public record Dependency(
+        String url,
+        String group,
+        String artifact,
+        String version,
+        String target,
+        boolean checkUpdate
+) {
     public static String fix(String value) {
         if (value.endsWith("/")) {
             return value.substring(0, value.length() - 1);
@@ -32,6 +39,14 @@ public record Dependency(String url, String group, String artifact, String versi
 
     public static String fixDot(String value) {
         return value.replaceAll("\\.", "/");
+    }
+
+    public Maven getMaven() {
+        return new Maven(
+                url,
+                group,
+                artifact
+        );
     }
 
     public String getDownloadURL() {
