@@ -2,13 +2,11 @@ buildscript {
     repositories {
         mavenLocal()
         mavenCentral()
-        maven {
-            url = uri("https://plugins.gradle.org/m2/")
-        }
+        gradlePluginPortal()
     }
 
     dependencies {
-        classpath 'gradle.plugin.com.github.johnrengelman:shadow:7.1.2'
+        classpath 'com.gradleup.shadow:shadow-gradle-plugin:+'
     }
 }
 
@@ -17,7 +15,7 @@ plugins {
 }
 
 
-apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'com.gradleup.shadow'
 apply plugin: 'java'
 apply plugin: 'maven-publish'
 
@@ -56,6 +54,8 @@ repositories {
 }
 
 java {
+    modularity.inferModulePath = true
+
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(21))
     }
@@ -76,17 +76,21 @@ test {
     useJUnitPlatform()
 }
 
+jar {
+    manifest {
+        attributes(
+                'Main-Class': 'org.mangorage.installer.Installer',
+                'ModuleMainClass': 'org.mangorage.installer.Installer'
+        )
+    }
+}
+
 shadowJar {
     group "main tasks"
     archiveClassifier.set('')
-}
 
-jar {
-    duplicatesStrategy = DuplicatesStrategy.EXCLUDE
-
-    manifest {
-        attributes 'Main-Class': 'org.mangorage.installer.Installer'
-    }
+    excludes.remove('module-info.class')
+    relocate('com.google.gson', 'internal.mango.gson')
 }
 
 publishing {

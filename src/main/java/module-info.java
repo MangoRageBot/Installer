@@ -1,5 +1,6 @@
 module org.mangorage.installer {
-    requires com.google.gson;
-    requires jopt.simple;
-    requires java.xml;
+    requires static com.google.gson;
+    requires static jopt.simple;
+
+    uses org.mangorage.installer.Installer;
 }
