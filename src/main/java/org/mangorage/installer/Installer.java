@@ -34,6 +34,7 @@ public class Installer {
         org.mangorage.installer.core.LogUtil.println("Arguments Supplied: " + Arrays.toString(args));
 
         OptionParser parser = new OptionParser();
+        parser.allowsUnrecognizedOptions();
 
         final OptionSpec<Void> launchArg = parser
                 .accepts("launch", "Whether or not to launch the program that will be installed/updated");
