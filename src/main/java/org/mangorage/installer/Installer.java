@@ -94,7 +94,7 @@ public class Installer {
             Map<String, String> newVersions = new HashMap<>();
 
             for (Dependency dependency : packages.packages()) {
-                File jar = handleDependency(dependency, installedVersions, newVersions, packages.destination());
+                File jar = handleDependency(dependency, installedVersions, newVersions, dependency.getDestination(packages.destination()));
                 if (jar != null) results.add(jar);
             }
 
@@ -203,54 +203,45 @@ public class Installer {
         });
     }
 
-    public static String findMainClass(List<File> files) {
-        for (File file : files) {
-            if (!file.getName().endsWith(".jar")) continue;
-
-            try (ZipInputStream zis = new ZipInputStream(new FileInputStream(file));
-                 BufferedReader reader = new BufferedReader(new InputStreamReader(zis))) {
-                ZipEntry entry;
-                while ((entry = zis.getNextEntry()) != null) {
-                    if (SERVICE_PATH.equals(entry.getName())) {
-                        org.mangorage.installer.core.LogUtil.println("Found " + SERVICE_PATH + " in " + file.getName());
-                        return reader.lines().collect(Collectors.joining("\n"));
-                    }
+    public static String findMainClass(File file) {
+        try (ZipInputStream zis = new ZipInputStream(new FileInputStream(file));
+             BufferedReader reader = new BufferedReader(new InputStreamReader(zis))) {
+            ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                if (SERVICE_PATH.equals(entry.getName())) {
+                    org.mangorage.installer.core.LogUtil.println("Found " + SERVICE_PATH + " in " + file.getName());
+                    return reader.lines().collect(Collectors.joining("\n"));
                 }
-            } catch (IOException e) {
-                throw new RuntimeException("Error processing JAR file: " + file.getName(), e);
             }
+        } catch (IOException e) {
+            throw new RuntimeException("Error processing JAR file: " + file.getName(), e);
         }
         return "";
     }
 
     public static void launchJar(List<File> jars, String[] args) {
         org.mangorage.installer.core.LogUtil.println("Attempting to launch....");
-        String mainClass = findMainClass(jars).strip();
+        String mainClass = findMainClass(new File("boot/boot.jar"));
+
         if (mainClass.isEmpty()) {
             org.mangorage.installer.core.LogUtil.println("Could not find Valid Launch File from List of Jars...");
             return;
         }
 
-        URL[] urls = jars.stream()
-                .map(File::toURI)
-                .map(uri -> {
-                    try {
-                        return uri.toURL();
-                    } catch (MalformedURLException e) {
-                        throw new RuntimeException("Invalid JAR file URL: " + uri, e);
-                    }
-                })
-                .toArray(URL[]::new);
-
-        try (URLClassLoader cl = new URLClassLoader(urls, Thread.currentThread().getContextClassLoader())) {
-            Thread.currentThread().setContextClassLoader(cl);
-            Class<?> clazz = Class.forName(mainClass, true, cl);
-            Method method = clazz.getDeclaredMethod("main", String[].class);
-            method.invoke(null, (Object) args);
-        } catch (IOException | ReflectiveOperationException e) {
-            throw new RuntimeException("Failed to launch the application", e);
-        } finally {
-            Thread.currentThread().setContextClassLoader(ClassLoader.getSystemClassLoader());
+        try {
+            URL bootJar = new File("boot/boot.jar").toURI().toURL();
+            try (URLClassLoader cl = new URLClassLoader(new URL[]{bootJar}, Thread.currentThread().getContextClassLoader())) {
+                Thread.currentThread().setContextClassLoader(cl);
+                Class<?> clazz = Class.forName(mainClass, true, cl);
+                Method method = clazz.getDeclaredMethod("main", String[].class);
+                method.invoke(null, (Object) args);
+            } catch (IOException | ReflectiveOperationException e) {
+                throw new RuntimeException("Failed to launch the application", e);
+            } finally {
+                Thread.currentThread().setContextClassLoader(ClassLoader.getSystemClassLoader());
+            }
+        } catch (Throwable e) {
+            throw new IllegalStateException("Failed to launch...", e);
         }
     }
 

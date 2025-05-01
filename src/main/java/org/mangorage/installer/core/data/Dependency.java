@@ -28,6 +28,7 @@ public record Dependency(
         String artifact,
         String version,
         String target,
+        String destination,
         boolean checkUpdate
 ) {
     public static String fix(String value) {
@@ -51,5 +52,9 @@ public record Dependency(
 
     public String getDownloadURL() {
         return "%s/%s/%s/%s/%s".formatted(fix(url), fixDot(group), artifact, version, target);
+    }
+
+    public String getDestination(String destinationPath) {
+        return this.destination == null ? destinationPath : this.destination;
     }
 }
