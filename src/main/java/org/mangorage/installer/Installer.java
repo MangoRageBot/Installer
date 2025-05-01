@@ -6,6 +6,7 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.PathConverter;
+import org.mangorage.installer.core.LogUtil;
 import org.mangorage.installer.core.UpdateChecker;
 import org.mangorage.installer.core.data.*;
 import java.io.*;
@@ -17,6 +18,7 @@ import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
 import java.util.jar.JarFile;
+import java.util.jar.Manifest;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
@@ -204,17 +206,17 @@ public class Installer {
     }
 
     public static String findMainClass(File file) {
-        try (ZipInputStream zis = new ZipInputStream(new FileInputStream(file));
-             BufferedReader reader = new BufferedReader(new InputStreamReader(zis))) {
-            ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                if (SERVICE_PATH.equals(entry.getName())) {
-                    org.mangorage.installer.core.LogUtil.println("Found " + SERVICE_PATH + " in " + file.getName());
-                    return reader.lines().collect(Collectors.joining("\n"));
+        try (JarFile jar = new JarFile(file)) {
+            Manifest manifest = jar.getManifest();
+            if (manifest != null) {
+                String mainClass = manifest.getMainAttributes().getValue("Main-Class");
+                if (mainClass != null) {
+                    org.mangorage.installer.core.LogUtil.println("Found Main-Class: " + mainClass);
+                    return mainClass;
                 }
             }
         } catch (IOException e) {
-            throw new RuntimeException("Error processing JAR file: " + file.getName(), e);
+            throw new RuntimeException("Failed to read JAR manifest from " + file.getName(), e);
         }
         return "";
     }
