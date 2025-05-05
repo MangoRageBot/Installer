@@ -84,13 +84,26 @@ jar {
         )
     }
 }
+task runInstaler(type: JavaExec) {
+    group = 'Installer Tasks'
+    description = 'Runs the main class in the build/run directory'
+
+    mainClass.set('org.mangorage.installer.Installer') // replace with your actual main class
+    classpath = sourceSets.main.runtimeClasspath
+
+    workingDir = file("$buildDir/run")
+    doFirst {
+        workingDir.mkdirs() // Make sure the directory exists
+    }
+}
 
 shadowJar {
     group "main tasks"
     archiveClassifier.set('')
 
     excludes.remove('module-info.class')
-    relocate('com.google.gson', 'internal.mango.gson')
+    relocate('com.google.gson', 'internal.shaded.com.google.gson')
+    relocate('joptsimple', 'internal.shaded.joptsimple')
 }
 
 publishing {

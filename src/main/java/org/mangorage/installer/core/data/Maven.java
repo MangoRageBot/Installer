@@ -29,4 +29,4 @@ package org.mangorage.installer.core.data;
  * @param groupId    (io.github.realmangorage)
  * @param artifactId (mangobot)
  */
-public record Maven(String repository, String groupId, String artifactId) { }
+public record Maven(String repository, String groupId, String artifactId) {}

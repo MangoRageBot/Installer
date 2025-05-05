@@ -6,12 +6,10 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.PathConverter;
-import org.mangorage.installer.core.LogUtil;
 import org.mangorage.installer.core.UpdateChecker;
 import org.mangorage.installer.core.data.*;
 import java.io.*;
 import java.lang.reflect.Method;
-import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
@@ -21,14 +19,12 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 import java.util.stream.Collectors;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 
 public class Installer {
     private static final Gson GSON = new GsonBuilder().setPrettyPrinting().create();
     private static final ExecutorService TASKS = Executors.newSingleThreadExecutor();
 
     private static final String DEPENDENCIES_PATH = "installer-data/dependencies.json";
-    private static final String SERVICE_PATH = "installer-data/services.launch";
     private static final Path LIBRARIES_PATH = Path.of("libraries/").toAbsolutePath();
 
     public static void main(String[] args) {
