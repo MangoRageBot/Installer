@@ -246,28 +246,9 @@ public class Installer {
 
             Thread.currentThread().setContextClassLoader(moduleCl);
 
-            callParent(mainClass, moduleLayer, moduleLayer.findModule("org.mangorage.bootstrap").get());
             callMain(mainClass, args, moduleLayer.findModule("org.mangorage.bootstrap").get());
         } catch (Throwable throwable) {
             throwable.printStackTrace();
-        }
-    }
-
-    public static void callParent(String className, ModuleLayer moduleLayer, Module module) {
-        try {
-            Class<?> clazz = Class.forName(className, false, module.getClassLoader());
-            Method mainMethod = clazz.getMethod("setParent", ModuleLayer.class);
-
-            // Make sure it's static and public
-            if (!java.lang.reflect.Modifier.isStatic(mainMethod.getModifiers())) {
-                throw new IllegalStateException("Main method is not static, are you high?");
-            }
-
-            // Invoke the main method with a godawful cast
-            mainMethod.invoke(null, (Object) moduleLayer);
-        } catch (Throwable e) {
-            e.printStackTrace();
-            throw new RuntimeException("Couldn't reflectively call main because something exploded.", e);
         }
     }
 
