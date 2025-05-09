@@ -20,7 +20,7 @@ apply plugin: 'java'
 apply plugin: 'maven-publish'
 
 group = 'org.mangorage'
-version = getLatestGitTag() + "." + getLatestGitVersion()
+version = getLatestGitTag() + "." + getLatestGitVersion() + "-beta"
 
 println("Version: " + version)
 

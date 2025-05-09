@@ -9,6 +9,8 @@ import joptsimple.util.PathConverter;
 import org.mangorage.installer.core.UpdateChecker;
 import org.mangorage.installer.core.data.*;
 import java.io.*;
+import java.lang.module.Configuration;
+import java.lang.module.ModuleFinder;
 import java.lang.reflect.Method;
 import java.net.URL;
 import java.net.URLClassLoader;
@@ -219,27 +221,71 @@ public class Installer {
 
     public static void launchJar(List<File> jars, String[] args) {
         org.mangorage.installer.core.LogUtil.println("Attempting to launch....");
-        String mainClass = findMainClass(new File("boot/boot.jar"));
+        File bootJar = new File("boot/boot.jar");
+        String mainClass = findMainClass(bootJar);
 
         if (mainClass.isEmpty()) {
             org.mangorage.installer.core.LogUtil.println("Could not find Valid Launch File from List of Jars...");
             return;
         }
 
+        final var moduleCfg = Configuration.resolve(
+                ModuleFinder.of(Path.of("boot")),
+                List.of(
+                        ModuleLayer.boot().configuration()
+                ),
+                ModuleFinder.of(),
+                Set.of("org.mangorage.bootstrap")
+        );
+
         try {
-            URL bootJar = new File("boot/boot.jar").toURI().toURL();
-            try (URLClassLoader cl = new URLClassLoader(new URL[]{bootJar}, Thread.currentThread().getContextClassLoader())) {
-                Thread.currentThread().setContextClassLoader(cl);
-                Class<?> clazz = Class.forName(mainClass, true, cl);
-                Method method = clazz.getDeclaredMethod("main", String[].class);
-                method.invoke(null, (Object) args);
-            } catch (IOException | ReflectiveOperationException e) {
-                throw new RuntimeException("Failed to launch the application", e);
-            } finally {
-                Thread.currentThread().setContextClassLoader(ClassLoader.getSystemClassLoader());
+            final var moduleCl = new URLClassLoader(new URL[]{bootJar.toURI().toURL()}, Thread.currentThread().getContextClassLoader());
+
+            final var moduleLayerController = ModuleLayer.defineModules(moduleCfg, List.of(ModuleLayer.boot()), s -> moduleCl);
+            final var moduleLayer = moduleLayerController.layer();
+
+            Thread.currentThread().setContextClassLoader(moduleCl);
+
+            callParent(mainClass, moduleLayer, moduleLayer.findModule("org.mangorage.bootstrap").get());
+            callMain(mainClass, args, moduleLayer.findModule("org.mangorage.bootstrap").get());
+        } catch (Throwable throwable) {
+            throwable.printStackTrace();
+        }
+    }
+
+    public static void callParent(String className, ModuleLayer moduleLayer, Module module) {
+        try {
+            Class<?> clazz = Class.forName(className, false, module.getClassLoader());
+            Method mainMethod = clazz.getMethod("setParent", ModuleLayer.class);
+
+            // Make sure it's static and public
+            if (!java.lang.reflect.Modifier.isStatic(mainMethod.getModifiers())) {
+                throw new IllegalStateException("Main method is not static, are you high?");
             }
+
+            // Invoke the main method with a godawful cast
+            mainMethod.invoke(null, (Object) moduleLayer);
         } catch (Throwable e) {
-            throw new IllegalStateException("Failed to launch...", e);
+            e.printStackTrace();
+            throw new RuntimeException("Couldn't reflectively call main because something exploded.", e);
+        }
+    }
+
+    public static void callMain(String className, String[] args, Module module) {
+        try {
+            Class<?> clazz = Class.forName(className, false, module.getClassLoader());
+            Method mainMethod = clazz.getMethod("main", String[].class);
+
+            // Make sure it's static and public
+            if (!java.lang.reflect.Modifier.isStatic(mainMethod.getModifiers())) {
+                throw new IllegalStateException("Main method is not static, are you high?");
+            }
+
+            // Invoke the main method with a godawful cast
+            mainMethod.invoke(null, (Object) args);
+        } catch (Throwable e) {
+            e.printStackTrace();
+            throw new RuntimeException("Couldn't reflectively call main because something exploded.", e);
         }
     }
 
