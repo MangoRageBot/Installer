@@ -55,8 +55,8 @@ public class Installer {
 
         var options = parser.parse(args);
 
-        List<File> jars = options.has("manualJar") ? getManualJars(options, manualJar) : processPackages(
-                options.has(checkUpdates) && options.has("launch"),
+        List<File> jars = options.has(manualJar) ? getManualJars(options, manualJar) : processPackages(
+                options.has(checkUpdates) && options.has(launchArg),
                 options.has(checkUpdates) ? options.valueOf(checkUpdates) : 0
         );
 
@@ -67,7 +67,7 @@ public class Installer {
         List<Dependency> dependencies = extractDependencies(jars);
         handleDependencies(dependencies);
 
-        if (options.has("launch")) {
+        if (options.has(launchArg)) {
             LogUtil.println("Finished running installer...");
             launchJar(jars, args);
         } else {
