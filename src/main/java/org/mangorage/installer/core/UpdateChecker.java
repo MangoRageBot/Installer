@@ -11,7 +11,7 @@ import java.util.concurrent.Executors;
 
 public final class UpdateChecker extends TimerTask {
     public static void startChecker(final Packages packages, final int freq) {
-        org.mangorage.installer.core.LogUtil.println("Starting Update Checker... Checks every " + freq + "ms");
+        LogUtil.println("Starting Update Checker... Checks every " + freq + "ms");
         new UpdateChecker(packages, freq);
     }
 
@@ -26,7 +26,7 @@ public final class UpdateChecker extends TimerTask {
     }
 
     void start(final int freq) {
-        org.mangorage.installer.core.LogUtil.println("Started Update Checker.");
+        LogUtil.println("Started Update Checker.");
         packages
                 .packages()
                 .stream()
@@ -52,7 +52,7 @@ public final class UpdateChecker extends TimerTask {
                     final var lastCheckedUpdatedTime = lastUpdated.get(dependency.target());
                     if (lastCheckedUpdatedTime != null) {
                         if (!lastCheckedUpdatedTime.matches(lastUpdatedTime)) {
-                            org.mangorage.installer.core.LogUtil.println("Exiting... Found update for " + dependency.target());
+                            LogUtil.println("Exiting... Found update for " + dependency.target());
                             System.exit(0);
                         }
                     }

@@ -22,6 +22,8 @@
 
 package org.mangorage.installer.core.data;
 
+import org.mangorage.installer.core.LogUtil;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
@@ -71,7 +73,7 @@ public final class Util {
 
     public static String downloadMetadata(Maven maven) {
         String url = maven.repository() + "/" + maven.groupId().replace(".", "/") + "/" + maven.artifactId() + "/maven-metadata.xml";
-        org.mangorage.installer.core.LogUtil.println("Downloading Metadata from %s".formatted(url));
+        LogUtil.println("Downloading Metadata from %s".formatted(url));
         try {
             return convertInputStreamToString(new URL(url).openStream());
         } catch (IOException e) {
@@ -117,13 +119,13 @@ public final class Util {
                 if (!Files.exists(destination.getParent())) Files.createDirectories(destination.getParent());
                 Files.copy(inputStream, destination, StandardCopyOption.REPLACE_EXISTING);
 
-                org.mangorage.installer.core.LogUtil.println("[INSTALLER] Installation complete. File saved to: " + destination);
+                LogUtil.println("[INSTALLER] Installation complete. File saved to: " + destination);
             } catch (URISyntaxException e) {
                 throw new RuntimeException(e);
             }
 
         } catch (IOException e) {
-            org.mangorage.installer.core.LogUtil.println(url);
+            LogUtil.println(url);
             throw new IllegalStateException(e);
         }
     }

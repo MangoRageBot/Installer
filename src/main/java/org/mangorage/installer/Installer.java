@@ -6,6 +6,7 @@ import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import joptsimple.util.PathConverter;
+import org.mangorage.installer.core.LogUtil;
 import org.mangorage.installer.core.UpdateChecker;
 import org.mangorage.installer.core.data.*;
 import java.io.*;
@@ -29,9 +30,11 @@ public class Installer {
     private static final String DEPENDENCIES_PATH = "installer-data/dependencies.json";
     private static final Path LIBRARIES_PATH = Path.of("libraries/").toAbsolutePath();
 
-    public static void main(String[] args) {
-        org.mangorage.installer.core.LogUtil.println("Starting Installer...");
-        org.mangorage.installer.core.LogUtil.println("Arguments Supplied: " + Arrays.toString(args));
+    public static void main(String[] args) throws InterruptedException {
+        LogUtil.println("Starting Installer in 30 seconds...");
+        LogUtil.println("Arguments Supplied: " + Arrays.toString(args));
+
+        Thread.sleep(30_000); // Sleep for 30 seconds
 
         OptionParser parser = new OptionParser();
         parser.allowsUnrecognizedOptions();
@@ -65,10 +68,10 @@ public class Installer {
         handleDependencies(dependencies);
 
         if (options.has("launch")) {
-            org.mangorage.installer.core.LogUtil.println("Finished running installer...");
+            LogUtil.println("Finished running installer...");
             launchJar(jars, args);
         } else {
-            org.mangorage.installer.core.LogUtil.println("Finished running installer...");
+            LogUtil.println("Finished running installer...");
             System.exit(0);
         }
     }
@@ -81,7 +84,7 @@ public class Installer {
     }
 
     private static List<File> processPackages(final boolean checkUpdates, final int updateFreq) {
-        org.mangorage.installer.core.LogUtil.println("Processing installer/packages.json");
+        LogUtil.println("Processing installer/packages.json");
         File file = new File("installer/packages.json");
         if (!file.exists()) throw new IllegalStateException("packages.json not found!");
 
@@ -136,7 +139,7 @@ public class Installer {
             return new File(destination, dependency.target());
         }
 
-        org.mangorage.installer.core.LogUtil.println("Installing/updating " + dependency.target());
+        LogUtil.println("Installing/updating " + dependency.target());
         return Util.downloadTo(maven, latestVersion, destination + "/" + dependency.target());
     }
 
@@ -145,13 +148,13 @@ public class Installer {
         try {
             return Util.parseLatestVersion(future.get(10, TimeUnit.SECONDS), defaultVersion);
         } catch (Exception e) {
-            org.mangorage.installer.core.LogUtil.println("Failed to get metadata, using default version: " + defaultVersion);
+            LogUtil.println("Failed to get metadata, using default version: " + defaultVersion);
             return defaultVersion;
         }
     }
 
     private static List<Dependency> extractDependencies(List<File> jars) {
-        org.mangorage.installer.core.LogUtil.println("Extracting dependencies from JARs");
+        LogUtil.println("Extracting dependencies from JARs");
         List<Dependency> dependencies = new ArrayList<>();
 
         for (File jar : jars) {
@@ -161,7 +164,7 @@ public class Installer {
                     try (var reader = new InputStreamReader(jarFile.getInputStream(entry))) {
                         List<Dependency> extracted = GSON.fromJson(reader, Dependencies.class).dependencies();
                         dependencies.addAll(extracted);
-                        extracted.forEach(dep -> org.mangorage.installer.core.LogUtil.println("Found dependency: " + dep));
+                        extracted.forEach(dep -> LogUtil.println("Found dependency: " + dep));
                     }
                 }
             } catch (IOException e) {
@@ -172,8 +175,8 @@ public class Installer {
     }
 
     private static void handleDependencies(List<Dependency> dependencies) {
-        org.mangorage.installer.core.LogUtil.println("Handling dependencies...");
-        org.mangorage.installer.core.LogUtil.println("Skipping dependencies already present...");
+        LogUtil.println("Handling dependencies...");
+        LogUtil.println("Skipping dependencies already present...");
         Set<String> installedJars = new HashSet<>();
         List<File> existingJars = getExistingLibraryJars();
 
@@ -182,7 +185,7 @@ public class Installer {
             if (!existingJars.contains(new File(LIBRARIES_PATH.toString(), dep.target()))) {
                 Util.installUrl(dep.getDownloadURL(), LIBRARIES_PATH.toString(), true);
             } else {
-                org.mangorage.installer.core.LogUtil.println("Skipped -> " + dep.target());
+                LogUtil.println("Skipped -> " + dep.target());
             }
         }
 
@@ -197,7 +200,7 @@ public class Installer {
     private static void deleteUnusedDependencies(List<File> existingJars, Set<String> installedJars) {
         existingJars.forEach(file -> {
             if (!installedJars.contains(file.getName())) {
-                org.mangorage.installer.core.LogUtil.println("Deleting unused dependency: " + file.getName());
+                LogUtil.println("Deleting unused dependency: " + file.getName());
                 file.delete();
             }
         });
@@ -209,7 +212,7 @@ public class Installer {
             if (manifest != null) {
                 String mainClass = manifest.getMainAttributes().getValue("Main-Class");
                 if (mainClass != null) {
-                    org.mangorage.installer.core.LogUtil.println("Found Main-Class: " + mainClass);
+                    LogUtil.println("Found Main-Class: " + mainClass);
                     return mainClass;
                 }
             }
@@ -220,12 +223,12 @@ public class Installer {
     }
 
     public static void launchJar(List<File> jars, String[] args) {
-        org.mangorage.installer.core.LogUtil.println("Attempting to launch....");
+        LogUtil.println("Attempting to launch....");
         File bootJar = new File("boot/boot.jar");
         String mainClass = findMainClass(bootJar);
 
         if (mainClass.isEmpty()) {
-            org.mangorage.installer.core.LogUtil.println("Could not find Valid Launch File from List of Jars...");
+            LogUtil.println("Could not find Valid Launch File from List of Jars...");
             return;
         }
 
