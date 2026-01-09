@@ -22,14 +22,19 @@
 
 package org.mangorage.installer.core.data;
 
+import org.mangorage.installer.core.LogUtil;
+
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+
 public record Dependency(
         String url,
         String group,
         String artifact,
         String version,
         String target,
-        String destination,
-        boolean checkUpdate
+        String output
 ) {
     public static String fix(String value) {
         if (value.endsWith("/")) {
@@ -55,6 +60,24 @@ public record Dependency(
     }
 
     public String getDestination(String destinationPath) {
-        return this.destination == null ? destinationPath : this.destination;
+        return this.output == null ? destinationPath : this.output;
     }
+
+    public File download(Path relative) {
+        final var dest = relative.resolve(output).toAbsolutePath();
+
+        if (Files.exists(dest)) {
+            LogUtil.println(dest + " Already exists!");
+            return new File(dest.toString());
+        }
+
+        Util.installUrl(
+                url() + output,
+                dest.toString(),
+                false
+        );
+
+        return new File(dest.toString());
+    }
+
 }

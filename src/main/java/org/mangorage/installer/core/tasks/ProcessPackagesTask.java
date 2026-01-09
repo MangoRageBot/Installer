@@ -2,9 +2,9 @@ package org.mangorage.installer.core.tasks;
 
 import org.mangorage.installer.core.LogUtil;
 import org.mangorage.installer.core.UpdateChecker;
-import org.mangorage.installer.core.data.Dependency;
 import org.mangorage.installer.core.data.Installed;
 import org.mangorage.installer.core.data.InstalledPackage;
+import org.mangorage.installer.core.data.Package;
 import org.mangorage.installer.core.data.Packages;
 
 import java.io.File;
@@ -32,8 +32,8 @@ public final class ProcessPackagesTask {
             if (checkUpdates) UpdateChecker.startChecker(packages, updateFreq);
             Map<String, String> newVersions = new HashMap<>();
 
-            for (Dependency dependency : packages.packages()) {
-                File jar = HandleDependenciesTask.handleDependency(dependency, installedVersions, newVersions, dependency.getDestination(packages.destination()));
+            for (Package dependency : packages.packages()) {
+                File jar = HandleDependenciesTask.handlePackage(dependency, installedVersions, newVersions, dependency.getDestination(packages.destination()));
                 if (jar != null) results.add(jar);
             }
 

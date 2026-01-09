@@ -1,6 +1,5 @@
 package org.mangorage.installer.core;
 
-import org.mangorage.installer.core.data.Dependency;
 import org.mangorage.installer.core.data.Packages;
 import org.mangorage.installer.core.data.Util;
 import java.util.HashMap;
@@ -30,7 +29,6 @@ public final class UpdateChecker extends TimerTask {
         packages
                 .packages()
                 .stream()
-                .filter(Dependency::checkUpdate)
                 .forEach(dependency -> {
                     final var metadata = Util.downloadMetadata(dependency.getMaven());
                     final var lastUpdatedTime = Util.getLastUpdated(metadata);
@@ -45,7 +43,6 @@ public final class UpdateChecker extends TimerTask {
         packages
                 .packages()
                 .stream()
-                .filter(Dependency::checkUpdate)
                 .forEach(dependency -> {
                     final var metadata = Util.downloadMetadata(dependency.getMaven());
                     final var lastUpdatedTime = Util.getLastUpdated(metadata);

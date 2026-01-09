@@ -53,6 +53,7 @@ public final class Util {
         );
 
         installUrl(URL, path, false);
+
         return new File(path);
     }
 
@@ -109,7 +110,7 @@ public final class Util {
 
             // Open a stream from the URL
             try (InputStream inputStream = urlObject.openStream()) {
-                // Create the destination path
+                // Create the output path
                 String path = destinationPath;
                 if (resolveName) {
                     Path file = Path.of(urlObject.toURI().getPath());
@@ -119,7 +120,7 @@ public final class Util {
                 if (!Files.exists(destination.getParent())) Files.createDirectories(destination.getParent());
                 Files.copy(inputStream, destination, StandardCopyOption.REPLACE_EXISTING);
 
-                LogUtil.println("[INSTALLER] Installation complete. File saved to: " + destination);
+                LogUtil.println("Installation complete. File saved to: " + destination);
             } catch (URISyntaxException e) {
                 throw new RuntimeException(e);
             }
