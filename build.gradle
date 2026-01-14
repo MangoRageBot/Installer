@@ -84,6 +84,7 @@ jar {
         )
     }
 }
+
 task runInstaler(type: JavaExec) {
     group = 'Installer Tasks'
     description = 'Runs the main class in the build/run directory'
