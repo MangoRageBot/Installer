@@ -43,9 +43,11 @@ public final class JarTask {
         }
 
         final var moduleCfg = Configuration.resolve(
-                ModuleFinder.of(Path.of("boot")),
+                ModuleFinder.of(
+                        Path.of("boot")
+                ),
                 List.of(
-                        ModuleLayer.boot().configuration()
+                        JarTask.class.getModule().getLayer().configuration()
                 ),
                 ModuleFinder.of(),
                 Set.of("org.mangorage.bootstrap")
