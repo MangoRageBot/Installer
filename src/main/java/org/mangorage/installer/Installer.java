@@ -25,7 +25,7 @@ public final class Installer {
         LogUtil.println("Starting Installer in 30 seconds...");
         LogUtil.println("Arguments Supplied: " + Arrays.toString(args));
 
-        //Thread.sleep(30_000); // Sleep for 30 seconds
+        Thread.sleep(30_000); // Sleep for 30 seconds
 
         OptionParser parser = new OptionParser();
         parser.allowsUnrecognizedOptions();

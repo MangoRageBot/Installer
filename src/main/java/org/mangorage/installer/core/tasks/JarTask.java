@@ -47,7 +47,7 @@ public final class JarTask {
                         Path.of("boot")
                 ),
                 List.of(
-                        JarTask.class.getModule().getLayer().configuration()
+                        ModuleLayer.boot().configuration()
                 ),
                 ModuleFinder.of(),
                 Set.of("org.mangorage.bootstrap")
